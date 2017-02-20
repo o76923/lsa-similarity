@@ -1,0 +1,7 @@
+{
+  "id": 2,
+  "family": "Vector Space Model",
+  "name": "LSA",
+  "short_description": "Latent Semantic Analysis",
+  "link": "sims.theorizeit.org/algorithms/#LSA"
+}
