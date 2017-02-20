@@ -3,7 +3,6 @@ import string
 from gensim.models import LsiModel
 from gensim.corpora import Dictionary
 import numpy as np
-from os import getenv
 from scipy.spatial.distance import cdist
 from nltk.stem import PorterStemmer
 from nltk.corpus import stopwords
