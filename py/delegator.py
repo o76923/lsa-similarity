@@ -4,16 +4,12 @@ from py.calculate_sim import LSASim
 
 space_name = getenv("SPACE")
 
-try:
-    paragraph = getenv("PARAGRAPH")
+paragraph = getenv("PARAGRAPH", None)
+if paragraph:
     c = Creator(paragraph, space_name)
     c.main()
-except KeyError:
-    pass
 
-try:
-    target = getenv("TARGET")
+target = getenv("TARGET", None)
+if target:
     s = LSASim(target, space_name)
     s.main()
-except KeyError:
-    pass

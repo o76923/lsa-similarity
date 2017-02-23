@@ -1,5 +1,5 @@
 import string
-
+from itertools import product
 from gensim.models import LsiModel
 from gensim.corpora import Dictionary
 import numpy as np
@@ -25,9 +25,12 @@ class LSASim(object):
         self.vectors = dict()
 
     def load_sentences(self):
-        with open("/app/data/%s.txt" % self.file_name) as in_file:
-            in_file.readline()
-            raw_sentences = {x[0]: x[1] for x in [l.split("\t") for l in in_file.readlines()]}
+        with open("/app/data/%s.txt" % self.file_name, encoding="utf-8-sig") as in_file:
+            try:
+                raw_sentences = {int(x[0]): x[1] for x in [l.split("\t") for l in in_file.readlines()]}
+            except ValueError:
+                in_file.readline()
+                raw_sentences = {int(x[0]): x[1] for x in [l.split("\t") for l in in_file.readlines()]}
         self.sentences = raw_sentences
 
     def clean_sentence(self, sentence):
@@ -46,7 +49,8 @@ class LSASim(object):
         print("starting sentence_dict", len(self.vectors))
         nulls = set(k for k in self.vectors if self.vectors[k] is None or len(self.vectors[k]) != 300)
         print("found nulls", len(nulls))
-        with_data = list(self.vectors.keys() - nulls)
+        print(nulls)
+        with_data = sorted(list(self.vectors.keys() - nulls))
         print("reduced to with data", len(with_data))
         i = 0
         index_sentence_map = {}
@@ -54,16 +58,13 @@ class LSASim(object):
             index_sentence_map[i] = k
             i += 1
         print("made index_sentence_map", len(index_sentence_map))
-        if i > 0:
-            mat = np.array([self.vectors[k] for k in with_data])
-            print("made mat")
-            sims = cdist(mat, mat, 'cosine')
-            print("calculated sims")
-            sims = np.ones(shape=sims.shape, dtype=np.float) - sims
-            print("subtracted sims from 1")
-            return sims, index_sentence_map
-        else:
-            return []
+        mat = np.array([self.vectors[k] for k in with_data])
+        print("made mat")
+        sims = cdist(mat, mat, 'cosine')
+        print("calculated sims")
+        sims = np.ones(shape=sims.shape, dtype=np.float) - sims
+        print("subtracted sims from 1")
+        return sims, index_sentence_map, nulls
 
     def trip_generator(self, sims):
         I, J = np.indices(sims.shape)
@@ -75,15 +76,19 @@ class LSASim(object):
     def main(self):
         self.load_sentences()
         print("loaded sentences")
+
         pool = multiprocessing.Pool(19)
         self.vectors = {k: v for k, v in (pool.map_async(func=self.process_sentence, iterable=self.sentences.items())).get()}
         pool.close()
 
         print("made sentence dict")
-        sims, key_sentence_map = self.calculate_similarities()
+        sims, key_sentence_map, nulls = self.calculate_similarities()
         print("calculated similarities")
 
         with open("/app/data/%s_LSA_%s.csv" % (self.file_name, self.space_name), "w") as o:
             for l, r, s in self.trip_generator(sims):
                 line = "%s,%s,%0.4f\n" % (key_sentence_map[l], key_sentence_map[r], s)
+                o.write(line)
+            for good, bad in product(self.sentences.keys(), nulls):
+                line = "%s,%s,0.000\n" % (min(good, bad), max(good, bad))
                 o.write(line)
