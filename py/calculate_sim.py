@@ -26,11 +26,11 @@ class LSASim(object):
 
     def load_sentences(self):
         with open("/app/data/%s.txt" % self.file_name, encoding="utf-8-sig") as in_file:
+            lines = in_file.readlines()
             try:
-                raw_sentences = {int(x[0]): x[1] for x in [l.split("\t") for l in in_file.readlines()]}
+                raw_sentences = {int(x[0]): x[1] for x in [l.split("\t") for l in lines]}
             except ValueError:
-                in_file.readline()
-                raw_sentences = {int(x[0]): x[1] for x in [l.split("\t") for l in in_file.readlines()]}
+                raw_sentences = {int(x[0]): x[1] for x in [l.split("\t") for l in lines[1:]]}
         self.sentences = raw_sentences
 
     def clean_sentence(self, sentence):
@@ -75,7 +75,7 @@ class LSASim(object):
 
     def main(self):
         self.load_sentences()
-        print("loaded sentences")
+        print("loaded sentences", len(self.sentences))
 
         pool = multiprocessing.Pool(19)
         self.vectors = {k: v for k, v in (pool.map_async(func=self.process_sentence, iterable=self.sentences.items())).get()}
