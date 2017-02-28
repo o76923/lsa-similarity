@@ -1,5 +1,4 @@
-import multiprocessing
-
+import multiprocessing as mp
 from nltk.stem import PorterStemmer
 from nltk.corpus import stopwords
 from gensim.corpora import Dictionary
@@ -18,14 +17,20 @@ class Creator(object):
         self.space_name = space_name
         self.documents = list()
 
-    def load_sentences(self):
+    def load_documents(self):
         with open("/app/data/%s.txt" % self.paragraph_file) as in_file:
             in_file.readline()
             self.documents = in_file.readlines()
 
-    def clean_sentence(self, sentence):
+    def _try_stem(self, word):
         try:
-            return [self.stemmer.stem(w) for w in self.alnum_patt.sub(' ', sentence.lower()).split() if len(w) > 0 and w not in self.stopwords]
+            return self.stemmer.stem(word)
+        except IndexError:
+            return ""
+
+    def clean_documents(self, sentence):
+        try:
+            return [w for w in [self._try_stem(w) for w in self.alnum_patt.sub(' ', sentence.lower()).split() if w not in self.stopwords] if len(w) > 0]
         except AttributeError:
             return []
 
@@ -52,12 +57,12 @@ class Creator(object):
         return dictionary, lsa_model
 
     def main(self):
-        self.load_sentences()
-        print("loaded sentences")
-        pool = multiprocessing.Pool(multiprocessing.cpu_count()-1)
-        clean_documents = [l for l in pool.map_async(func=self.clean_sentence, iterable=self.documents).get()]
+        self.load_documents()
+        print("loaded documents")
+        pool = mp.Pool(mp.cpu_count()-1)
+        clean_documents = [l for l in pool.map_async(func=self.clean_documents, iterable=self.documents).get()]
         pool.close()
-        print("Cleaned sentences")
+        print("Cleaned documents")
         dictionary, model = self.create_space(clean_documents)
         print("Created space")
         dictionary.save('/app/data/%s.dictionary' % self.space_name)

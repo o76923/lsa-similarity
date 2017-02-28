@@ -7,7 +7,7 @@ from scipy.spatial.distance import cdist
 from nltk.stem import PorterStemmer
 from nltk.corpus import stopwords
 import re
-import multiprocessing
+import multiprocessing as mp
 
 
 class LSASim(object):
@@ -33,9 +33,15 @@ class LSASim(object):
                 raw_sentences = {int(x[0]): x[1] for x in [l.split("\t") for l in lines[1:]]}
         self.sentences = raw_sentences
 
+    def _try_stem(self, word):
+        try:
+            return self.stemmer.stem(word)
+        except IndexError:
+            return ""
+
     def clean_sentence(self, sentence):
         try:
-            return [self.stemmer.stem(w) for w in self.alnum_patt.sub(' ', sentence.lower()).split() if len(w) > 0 and w not in self.stopwords]
+            return [w for w in [self._try_stem(w) for w in self.alnum_patt.sub(' ', sentence.lower()).split() if w not in self.stopwords] if len(w) > 0]
         except AttributeError:
             return []
 
@@ -48,10 +54,8 @@ class LSASim(object):
     def calculate_similarities(self):
         print("starting sentence_dict", len(self.vectors))
         nulls = set(k for k in self.vectors if self.vectors[k] is None or len(self.vectors[k]) != 300)
-        print("found nulls", len(nulls))
-        print(nulls)
         with_data = sorted(list(self.vectors.keys() - nulls))
-        print("reduced to with data", len(with_data))
+        print("removed vectorless sentences", len(with_data))
         i = 0
         index_sentence_map = {}
         for k in with_data:
@@ -77,17 +81,19 @@ class LSASim(object):
         self.load_sentences()
         print("loaded sentences", len(self.sentences))
 
-        pool = multiprocessing.Pool(19)
-        self.vectors = {k: v for k, v in (pool.map_async(func=self.process_sentence, iterable=self.sentences.items())).get()}
+        pool = mp.Pool(mp.cpu_count()-1)
+        self.vectors = {k: v for k, v in (pool.map_async(func=self.process_sentence,
+                                                         iterable=self.sentences.items())).get()}
         pool.close()
 
         print("made sentence dict")
-        sims, key_sentence_map, nulls = self.calculate_similarities()
+        sims, ksm, nulls = self.calculate_similarities()
         print("calculated similarities")
 
-        with open("/app/data/%s_LSA_%s.csv" % (self.file_name, self.space_name), "w") as o:
+        fn = "/app/data/%s_LSA_%s.csv" % (self.file_name, self.space_name)
+        with open(fn, "w") as o:
             for l, r, s in self.trip_generator(sims):
-                line = "%s,%s,%0.4f\n" % (key_sentence_map[l], key_sentence_map[r], s)
+                line = "%s,%s,%0.4f\n" % (ksm[l], ksm[r], s)
                 o.write(line)
             for good, bad in product(self.sentences.keys(), nulls):
                 line = "%s,%s,0.000\n" % (min(good, bad), max(good, bad))
