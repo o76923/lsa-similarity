@@ -11,5 +11,5 @@ if paragraph:
 
 target = getenv("TARGET", None)
 if target:
-    s = LSASim(target, space_name)
+    s = LSASim()
     s.main()
