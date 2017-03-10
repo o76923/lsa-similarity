@@ -1,3 +1,3 @@
 #!/bin/sh
 
-python -m py.delegator
+PYTHON_UNBUFFERED=1 python -m py.delegator

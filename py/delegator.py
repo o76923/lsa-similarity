@@ -1,15 +1,23 @@
-from os import getenv
-from py.create_space import Creator
-from py.calculate_sim import LSASim
+from datetime import datetime
+from py.space_creator import Creator
+from py.sim_calculator import LSASim
+from py.configurator import ConfigSettings
+from functools import partial
 
-space_name = getenv("SPACE")
 
-paragraph = getenv("PARAGRAPH", None)
-if paragraph:
-    c = Creator(paragraph, space_name)
-    c.main()
+def echo_message(process, start, msg):
+    print("{:<20}{:<20}{:<39}".format(process, str(datetime.now()-start), msg))
 
-target = getenv("TARGET", None)
-if target:
-    s = LSASim()
-    s.main()
+if __name__ == "__main__":
+    start = datetime.now()
+    cfg = ConfigSettings()
+    echo_message("Delegator", start, "Loaded Configuration")
+    if cfg.create_space:
+        c = Creator(cfg, partial(echo_message, start=start))
+        c.start = start
+        c.main()
+
+    if cfg.calculate_sims:
+        s = LSASim(cfg, partial(echo_message, start=start))
+        s.main()
+    echo_message("Delegator", start, "Done")

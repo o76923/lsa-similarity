@@ -10,7 +10,7 @@ RUN export NPROC=$(grep -c ^processor /proc/cpuinfo 2>/dev/null || 1) \
     && echo "http://alpine.gliderlabs.com/alpine/v3.4/main" > /etc/apk/repositories \
     && echo "http://alpine.gliderlabs.com/alpine/v3.4/community" >> /etc/apk/repositories \
     && echo "@edge http://alpine.gliderlabs.com/alpine/edge/community" >> /etc/apk/repositories \
-    && apk --no-cache add openblas-dev@edge \
+    && apk --no-cache add openblas-dev@edge redis \
     && apk --no-cache add --virtual build-deps \
         g++ \
         linux-headers \
@@ -30,8 +30,11 @@ RUN export NPROC=$(grep -c ^processor /proc/cpuinfo 2>/dev/null || 1) \
     && rm -r numpy-$NUMPY_VERSION \
     && pip install \
         gensim \
+        hiredis \
         nltk \
+        redis \
         scipy \
+        pyyaml \
     && python -m nltk.downloader -d /usr/share/nltk_data punkt wordnet stopwords \
     && apk --no-cache del --purge build-deps
 

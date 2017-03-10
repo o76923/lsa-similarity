@@ -1,0 +1,79 @@
+Latent Semantic Analysis Similarity Calculator
+===
+This container is used to perform Latent Semantic Analysis (LSA) on short 
+texts. This includes the ability to create a semantic space as well as the 
+ability to calculate cosine similarity scores on short texts using a semantic 
+space.
+
+Running the Tool
+===
+In order to run the tool, type the following into your terminal
+~~~bash
+docker run -t -v /local/data/path/:/app/data o76923/lsa
+~~~
+Where `/local/data/path/` is the path on your local system that contains the 
+source information.
+
+Directory Structure
+===
+The path on your local machine should contain the following
+1. The semantic space
+1. The texts to be compared
+1. A configuration file
+
+Semantic Space
+===
+The semantic space is the corpus that is used in order to create similarity 
+files.
+
+Texts to be Compared
+===
+The texts to be compared are the short texts that you wish to have compared to 
+one another. Similarity scores will be generated between texts with one ID and
+texts with another ID.
+
+Configuration File
+===
+The configuration file specifies the parameters that will tweak how the tool 
+behaves. The sections of it are as follows
+
+Tasks
+---
+There are two main tasks that can be performed by this tool: ***create_space***
+and ***calculate_sim***
+
+***create_space***
+
+This task takes input documents and creates a semantic space from them. A 
+sample of this section is provided below
+~~~
+name: IS
+space_settings:
+  stem: true
+  case_insensitive: true
+  dimensions: 300
+  remove:
+    - punctuation
+    - singletons
+    - numbers
+    - stopwords:
+        library: nltk
+from:
+  document_scope: line
+  files:
+    - paragraph.txt
+~~~
+* **name** specifies the name of the newly created space that will be used when
+referring to the space elsewhere and controls the directory that files will be
+placed in for this space.
+* **space_settings** specifies details about how LSA is performed
+    * *stem* is either "true" or "false" depending on if words should be passed
+    into the Porter Stemmer.
+    * *case_insensitive* is either "true" or "false" depending on 
+* **from** specifies details about the documents that for the basis of the 
+space.
+
+
+Options
+---
+Options specifies global options that will apply to all tasks run.
