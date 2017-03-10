@@ -68,10 +68,29 @@ referring to the space elsewhere and controls the directory that files will be
 placed in for this space.
 * **space_settings** specifies details about how LSA is performed
     * *stem* is either "true" or "false" depending on if words should be passed
-    into the Porter Stemmer.
-    * *case_insensitive* is either "true" or "false" depending on 
+    into the Porter Stemmer. Default is "true" where words are passed to the 
+    stemmer.
+    * *case_insensitive* is either "true" or "false" depending on whether 
+    capitalization of words matters. Default is "true" where all words are 
+    changed to lower case.
+    * *dimensions* is an integer that specifies the rank of the reduced matrix.
+    This corresponds to the number of most significant eigenvectors that are
+    computed and stored. Default is "300".
+    * *remove* is a list of options for what should be removed from the space
+    during pre-processing. Any of the following present in thefile will be 
+    removed options not present in the file will remain in the document. The 
+    options are:
+        * punctuation - characters not A-Z or a-z
+        * singletons - words that appear only in a single document in the 
+        corpus
+        * numbers - the digits 0-9
+        * stopwords - words that should be removed based on how common they
+        are in language. The default option here is to specify "library: nltk"
+        which says to use the corpus of stopwords from the NLTK corpus in 
+        python
 * **from** specifies details about the documents that for the basis of the 
 space.
+    * *document_scope* is 
 
 
 Options
