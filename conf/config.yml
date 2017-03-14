@@ -1,0 +1,32 @@
+tasks:
+ - type: create_space
+   name: News
+   space_settings:
+     stem: true
+     case_insensitive: true
+     dimensions: 300
+     remove:
+       - punctuation
+       - singletons
+       - numbers
+       - stopwords:
+           library: nltk
+   from:
+     document_scope: line
+     files:
+       - paragraph_News.txt
+  - type: calculate_sims
+    space: News
+    from:
+      files:
+        - MIDUSquestions.txt
+        - CDEnames.txt
+      pairs: cross
+    options:
+      batch_size: 100
+    output:
+      filename: sims_News_2.csv
+      similarity_count:
+        left: 10
+options:
+  cores: 20

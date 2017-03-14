@@ -1,120 +1,208 @@
 import yaml
-from py.space_settings import SpaceSettings
+
+
+class SpaceSettings(object):
+    dimensions: int
+    remove_punctuation: bool
+    remove_numbers: bool
+    remove_singletons: bool
+    stem: bool
+    case_insensitive: bool
+    stopwords: list
+
+    def __getattr__(self, item):
+        if item in self.__dict__.keys():
+            return self.__dict__[item]
+        else:
+            return False
+
+    def __setattr__(self, key, value):
+        self.__dict__[key] = value
+
+    def __setitem__(self, key, value):
+        self.__dict__[key] = value
+
+    def save(self, path):
+        with open("%s/space_config.yml" % path, "w") as out_file:
+            data = {
+                "dimensions": self.dimensions,
+                "stem": self.stem,
+                "case_insensitive": self.case_insensitive,
+                "remove": []
+            }
+            if self.remove_punctuation:
+                data["remove"].append("punctuation")
+            if self.remove_numbers:
+                data["remove"].append("numbers")
+            if self.remove_singletons:
+                data["remove"].append("singletons")
+            if self.stopwords:
+                data['stopwords'] = True
+                with open("%s/stopwords.txt" % path, "w") as sw_file:
+                    sw_file.write("\n".join(self.stopwords))
+            else:
+                data['stopwords'] = False
+            yaml.dump(data, out_file)
+
+
+class TaskSettings(object):
+    space_name: str
+    space_settings: SpaceSettings
+    type: str
+    num_cores: int
+
+
+class CreateSettings(TaskSettings):
+    space_files: list
+    type = 'create_space'
+
+
+class CalculateSettings(TaskSettings):
+    sentence_files: list
+    pair_mode: str
+    pair_list: list
+    file_name: str
+    top_n: int
+    type = 'calculate_sims'
 
 
 class ConfigSettings(object):
-    space_name: str
-    space_files: list
-    sentence_files: list
-    pair_mode = str
-    pair_list: list
-    num_cores: int
-    max_memory: int
 
     def __init__(self, filename="/app/data/config.yml"):
         self._read_config(filename)
+        self.tasks = []
 
-        self.create_space = "create_space" in self._cfg['tasks']
-        if self.create_space:
-            self.space_name = self._cfg['tasks']['create_space']['name']
-            self._initialize_space_settings('create_space')
-            self._initialize_space_files()
-
-        self.calculate_sims = "calculate_sims" in self._cfg['tasks']
-        if self.calculate_sims:
-            self.space_name = self._cfg['tasks']['calculate_sims']['space']
-            self._read_space_settings("/app/data/spaces/%s/space_config.yml" % self.space_name)
-            self._initialize_space_settings('calculate_sims')
-            self._initialize_sentence_files()
-            self._initialize_pair_mode()
-            self._initialize_calculate_settings()
-
-        self._initialize_global_options()
+        for t in self._cfg['tasks']:
+            if t["type"] == "create_space":
+                task = CreateSettings()
+                task.space_name = t['name']
+                task.space_settings = self._initialize_space_settings(t)
+                task.space_files = self._initialize_space_files(t)
+            elif t["type"] == "calculate_sims":
+                task = CalculateSettings()
+                task.space_name = t['space']
+                try:
+                    task.space_settings = self.tasks[0].space_settings
+                except IndexError:
+                    t['space_settings'] = self._read_space_settings(task.space_name)
+                    task.space_settings = self._initialize_space_settings(t)
+                task.sentence_files = self._initialize_sentence_files(t)
+                task.pair_mode, task.pair_list = self._initialize_pair_mode(t)
+                task.sim_batch_size = self._initialize_calculate_settings(t)
+                task.file_name, task.top_n = self._initialize_calculate_output(t)
+            task.num_cores = self._initialize_global_options()
+            self.tasks.append(task)
 
     def _read_config(self, filename):
         with open(filename) as in_file:
             self._cfg = yaml.load(in_file.read())
 
-    def _read_space_settings(self, filename):
-        if 'create_space' in self._cfg['tasks']:
-            self._cfg['tasks']['calculate_sims']['space_settings'] = self._cfg['tasks']['create_space']['space_settings']
-        else:
-            with open(filename) as in_file:
-                self._cfg['tasks']['calculate_sims']['space_settings'] = yaml.load(in_file.read())
+    def _read_space_settings(self, space_name):
+        with open("/app/data/spaces/%s/space_config.yml" % space_name) as in_file:
+            space_settings = yaml.load(in_file.read())
+        return space_settings
 
-    def _initialize_space_files(self):
-        self.space_files = []
-        if "files" in self._cfg['tasks']['create_space']['from']:
-            self.space_files = self._cfg['tasks']['create_space']['from']['files']
+    @staticmethod
+    def _initialize_space_files(t):
+        space_files = []
+        if "files" in t['from']:
+            space_files = t['from']['files']
+        return space_files
 
-    def _initialize_sentence_files(self):
-        self.sentence_files = []
-        if "files" in self._cfg['tasks']['calculate_sims']['from']:
-            # self.sentence_files = ["".join(x) for x in self._cfg['tasks']['calculate_sims']['from']['files']]
-            self.sentence_files = self._cfg['tasks']['calculate_sims']['from']['files']
+    @staticmethod
+    def _initialize_sentence_files(t):
+        sentence_files = []
+        if "files" in t['from']:
+            sentence_files = t['from']['files']
+        return sentence_files
 
-    def _initialize_space_settings(self, source):
+    @staticmethod
+    def _initialize_space_settings(t):
 
-        self.space_settings = SpaceSettings()
+        space_settings = SpaceSettings()
 
         # check things with default true
         # make them true if absent, present without a value, or present with true and false if present with false
         for param in ("stem", "case_insensitive"):
-            if param in self._cfg['tasks'][source]['space_settings']:
+            if param in t['space_settings']:
                 try:
-                    self.space_settings[param] = self._cfg['tasks'][source]['space_settings'][param]
+                    space_settings[param] = t['space_settings'][param]
                 except AttributeError:
-                    self.space_settings[param] = True
+                    space_settings[param] = True
             else:
-                self.space_settings[param] = True
+                space_settings[param] = True
         
         # check things that should be removed
         # set to remove if present or not if absent
         for param in ("punctuation", "numbers", "singletons"):
-            if param in self._cfg['tasks'][source]['space_settings']['remove']:
-                self.space_settings['remove_%s' % param] = True
+            if param in t['space_settings']['remove']:
+                space_settings['remove_%s' % param] = True
             else:
-                self.space_settings['remove_%s' % param] = False
+                space_settings['remove_%s' % param] = False
         
         # pull out a list of stopwords from the nltk library
-        for r in self._cfg['tasks'][source]['space_settings']['remove']:
+        for r in t['space_settings']['remove']:
             try:
                 if 'stopwords' in r.keys():
                     from nltk.corpus import stopwords
-                    self.space_settings.stopwords = stopwords.words('english')
+                    space_settings.stopwords = stopwords.words('english')
             except AttributeError:
                 pass
 
         # set dimensions, default 300
-        if 'dimensions' in self._cfg['tasks'][source]['space_settings']:
-            self.space_settings.dimensions = self._cfg['tasks'][source]['space_settings']['dimensions']
+        if 'dimensions' in t['space_settings']:
+            space_settings.dimensions = t['space_settings']['dimensions']
         else:
-            self.space_settings.dimensions = 300
+            space_settings.dimensions = 300
 
-    def _initialize_pair_mode(self):
-        if 'pairs' in self._cfg['tasks']['calculate_sims']['from']:
-            pair_mode = self._cfg['tasks']['calculate_sims']['from']['pairs']
+        return space_settings
+
+    @staticmethod
+    def _initialize_pair_mode(t):
+        pair_list = []
+        if 'pairs' in t['from']:
+            pair_mode = t['from']['pairs']
             if pair_mode in ('all', 'cross'):
-                self.pair_mode = pair_mode
+                pair_mode = pair_mode
             else:
-                self.pair_mode = 'list'
-                self.pair_list = []
-                for p in self._cfg['tasks']['calculate_sims']['from']['pairs']:
+                pair_mode = 'list'
+                for p in t['from']['pairs']:
                     with open("/app/data/%s" % p) as in_file:
                         new_pairs = [x for x in in_file.readlines()]
-                        self.pair_list.extend(new_pairs)
+                        pair_list.extend(new_pairs)
         else:
-            self.pair_mode = 'all'
+            pair_mode = 'all'
+        return pair_mode, pair_list
 
-    def _initialize_calculate_settings(self):
+    @staticmethod
+    def _initialize_calculate_settings(t):
         try:
-            self.sim_batch_size = self._cfg['tasks']['calculate_sims']['options']['batch_size']
+            sim_batch_size = t['options']['batch_size']
         except KeyError:
-            self.sim_batch_size = 100
+            sim_batch_size = 100
+        return sim_batch_size
+
+    @staticmethod
+    def _initialize_calculate_output(t):
+        try:
+            sim_file_name = t['output']['filename']
+        except KeyError:
+            sim_file_name = "sims.csv"
+        top_n = None
+        try:
+            left_min_sim = t['output']['similarity_count']['left']
+            top_n = left_min_sim
+        except KeyError:
+            try:
+                min_sim = int(t['output']['similarity_count'])
+                top_n = min_sim
+            except TypeError:
+                pass
+        return sim_file_name, top_n
 
     def _initialize_global_options(self):
         try:
-            self.num_cores = self._cfg['options']['cores']
+            return self._cfg['options']['cores']
         except KeyError:
             from multiprocessing import cpu_count
-            self.num_cores = cpu_count()
+            return cpu_count()

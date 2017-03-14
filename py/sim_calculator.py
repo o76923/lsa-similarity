@@ -1,11 +1,13 @@
 import string
 from itertools import product, combinations_with_replacement, count
+from pprint import pprint
+
 from gensim.models import LsiModel
 from gensim.corpora import Dictionary
 import numpy as np
 import re
 import multiprocessing as mp
-from py.configurator import ConfigSettings
+from py.configurator import CalculateSettings
 import py.document_cleaner as dc
 import py.vectorizer as vw
 import py.sim_batch_worker as sbw
@@ -14,12 +16,13 @@ from functools import partial
 from shutil import rmtree
 from os import mkdir
 from collections import OrderedDict
+import redis
 
 
 class LSASim(object):
     PUNCTUATION_PATTERN = re.compile('[%s]' % re.escape(string.punctuation))
 
-    def __init__(self, config: ConfigSettings, announcer):
+    def __init__(self, config: CalculateSettings, announcer):
         self._cfg = config
         self.dictionary = Dictionary.load("/app/data/spaces/%s/dictionary" % self._cfg.space_name)
         self.model = LsiModel.load("/app/data/spaces/%s/lsi" % self._cfg.space_name)
@@ -30,6 +33,7 @@ class LSASim(object):
         self.file_keys = OrderedDict()
         self.file_nulls = OrderedDict()
         self.announcer = partial(announcer, process="Calculator")
+        self.r = redis.StrictRedis(host='localhost', port=6379, password='foobared', decode_responses=True)
 
     def _load_stopwords(self, filename):
         with open(filename) as in_file:
@@ -82,7 +86,7 @@ class LSASim(object):
             mat = np.array([self.vectors[k] for k in keys])
             yield keys, mat
 
-    def calculate_similarities(self):
+    def calculate_similarities(self, use_redis=False):
         if self._cfg.pair_mode == 'all':
             small_mat = [m for m in self._make_small_mats()]
             batches = combinations_with_replacement(small_mat, r=2)
@@ -94,12 +98,21 @@ class LSASim(object):
             right_batches = [r for r in self._make_small_mats(right_file)]
             batches = product(left_batches, right_batches)
             batch_count = len(left_batches) * len(right_batches)
-            self.announcer(msg="Made %d left mats and %d right mats for %d batches" % (len(left_batches), len(right_batches), batch_count))
+            self.announcer(msg="Made %d left mats and %d right mats for %d batches" %
+                               (len(left_batches), len(right_batches), batch_count))
         else:
             batches = []
             batch_count = 0
-        with mp.Pool(14, initializer=sbw.init_worker, initargs=(self.announcer, batch_count)) as pool:
-            pool.starmap_async(sbw.process_batch, [(b[0], b[1], c) for b, c in zip(batches, count(start=1))], chunksize=10).get()
+        if use_redis:
+            with mp.Pool(self._cfg.num_cores, initializer=sbw.init_worker, initargs=(self._cfg, self.announcer, batch_count, self.r)) as pool:
+                pool.starmap_async(sbw.process_batch,
+                                   [(b[0], b[1], c) for b, c in zip(batches, count(start=1))],
+                                   chunksize=10).get()
+        else:
+            with mp.Pool(14, initializer=sbw.init_worker, initargs=(self._cfg, self.announcer, batch_count)) as pool:
+                pool.starmap_async(sbw.process_batch,
+                                   [(b[0], b[1], c) for b, c in zip(batches, count(start=1))],
+                                   chunksize=10).get()
 
     def merge_similarity_files(self):
         subprocess.run("cat /app/data/temp_sim/sims-*.csv > /app/data/sims.csv", shell=True)
@@ -114,23 +127,46 @@ class LSASim(object):
         elif self._cfg.pair_mode == 'cross':
             left_nulls, right_nulls = self.file_nulls.values()
             for l, r in product(left_nulls, right_nulls):
-                    lines.append("{},{},0.0\n".format(l, r))
+                lines.append("{},{},0.0\n".format(l, r))
         with open("/app/data/sims.csv", "a") as out_file:
             out_file.write("".join(lines))
 
+    def top_n_writer(self):
+        with open("/app/data/%s" % self._cfg.file_name, "w") as out_file:
+            for left in self.r.scan_iter("*"):
+                sims = []
+                for right, sim in self.r.hscan_iter(left, "*"):
+                    sims.append((right, float(sim)))
+                sim_array = np.array(sims).T
+                keys = sim_array[0].astype(str)
+                values = sim_array[1].astype(np.float32)
+                part = np.argpartition(values, kth=-10)
+                top_n = zip(keys[part][-self._cfg.top_n:], values[part][-self._cfg.top_n:])
+                out_file.write("".join(["{},{},{:0.4f}\n".format(left, b[0], b[1]) for b in top_n]))
+
     def main(self):
         self.announcer(msg="Started")
-        self.create_temp_dir()
-        self.announcer(msg="Created empty temp directory")
         self.load_sentences()
         self.announcer(msg="Loaded %d sentences" % len(self.sentences))
         self.vectorize_sentences()
         self.announcer(msg="Vectorized sentences")
         self.filter_nulls()
         self.announcer(msg="Filtered nulls; %d removed, %d retained" % (len(self.nulls), len(self.vectors)))
-        self.calculate_similarities()
+
+        if self._cfg.top_n:
+            use_redis = True
+        else:
+            use_redis = False
+            self.create_temp_dir()
+            self.announcer(msg="Created empty temp directory")
+
+        self.calculate_similarities(use_redis)
         self.announcer(msg="Calculated all similarities")
-        self.merge_similarity_files()
-        self.announcer(msg="Merged files")
-        self.append_null_sims()
-        self.announcer(msg="Appended Nulls")
+        if use_redis:
+            self.top_n_writer()
+            self.announcer(msg="Wrote sims from redis")
+        else:
+            self.merge_similarity_files()
+            self.announcer(msg="Merged files")
+            self.append_null_sims()
+            self.announcer(msg="Appended Nulls")

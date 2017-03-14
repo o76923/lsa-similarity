@@ -9,15 +9,17 @@ def echo_message(process, start, msg):
     print("{:<20}{:<20}{:<39}".format(process, str(datetime.now()-start), msg))
 
 if __name__ == "__main__":
-    start = datetime.now()
+    start_time = datetime.now()
     cfg = ConfigSettings()
-    echo_message("Delegator", start, "Loaded Configuration")
-    if cfg.create_space:
-        c = Creator(cfg, partial(echo_message, start=start))
-        c.start = start
-        c.main()
+    echo_message("Delegator", start_time, "Loaded Configuration")
+    for task in cfg.tasks:
+        if task.type == 'create_space':
+            c = Creator(task, partial(echo_message, start=start_time))
+            c.start = start_time
+            c.main()
+        if task.type == 'calculate_sims':
+            s = LSASim(task, partial(echo_message, start=start_time))
+            s.main()
+        echo_message("Delegator", start_time, "Finished Task")
+    echo_message("Delegator", start_time, "Done")
 
-    if cfg.calculate_sims:
-        s = LSASim(cfg, partial(echo_message, start=start))
-        s.main()
-    echo_message("Delegator", start, "Done")

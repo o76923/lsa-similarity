@@ -1,6 +1,6 @@
 import re
 from nltk import PorterStemmer
-from py.space_settings import SpaceSettings
+from py.configurator import SpaceSettings
 
 
 class DocumentCleaner(object):
