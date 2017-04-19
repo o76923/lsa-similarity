@@ -68,6 +68,7 @@ class CalculateSettings(TaskSettings):
     top_n: int
     input_headers: bool
     sim_batch_size: int
+    output_null: str
     type = CALCULATE_TASK
 
 
@@ -96,6 +97,7 @@ class ConfigSettings(object):
                 task.pair_mode, task.pair_list = self._initialize_pair_mode(t)
                 task.sim_batch_size = self._initialize_calculate_settings(t)
                 task.file_name, task.top_n = self._initialize_calculate_output(t)
+                task.output_null = self._initialize_null_output(t)
             task.num_cores = self._initialize_global_options()
             self.tasks.append(task)
 
@@ -128,8 +130,17 @@ class ConfigSettings(object):
             if "headers" in t['from']:
                 return t['from']['headers']
         except KeyError:
-            return False
+            pass
         return False
+
+    @staticmethod
+    def _initialize_null_output(t):
+        try:
+            if "nulls" in t['output']:
+                return str(t['output']['nulls'])
+        except KeyError:
+            pass
+        return "NULL"
 
     @staticmethod
     def _initialize_space_settings(t):

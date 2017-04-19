@@ -125,13 +125,13 @@ class LSASim(object):
         lines = []
         if self._cfg.pair_mode == 'all':
             for l, r in product(self.nulls, self.vectors):
-                lines.append("{},{},0.0\n".format(min(l, r), max(l, r)))
+                lines.append("{},{},{}\n".format(min(l, r), max(l, r), self._cfg.output_null))
             for l, r in combinations(self.nulls, 2):
-                lines.append("{},{},0.0\n".format(l, r))
+                lines.append("{},{},{}\n".format(l, r, self._cfg.output_null))
         elif self._cfg.pair_mode == 'cross':
             left_nulls, right_nulls = self.file_nulls.values()
             for l, r in product(left_nulls, right_nulls):
-                lines.append("{},{},0.0\n".format(l, r))
+                lines.append("{},{},{}\n".format(l, r, self._cfg.output_null))
         with open("/app/data/output/%s" % self._cfg.file_name, "a") as out_file:
             out_file.write("".join(lines))
 
