@@ -89,20 +89,21 @@ class LSASim(object):
             small_mat = [m for m in self._make_small_mats()]
             batches = combinations_with_replacement(small_mat, r=2)
             batch_count = (len(self.vectors)//self._cfg.sim_batch_size+1)*(len(self.vectors)//self._cfg.sim_batch_size)//2+1
-            self.announcer(msg="Made %d small mats for %d batches" % (len(small_mat), batch_count))
+            self.announcer(msg="Made {:,d} small mats for {:,d} batches".format(len(small_mat), batch_count))
         elif self._cfg.pair_mode == 'cross':
             left_file, right_file = self.file_keys.keys()
             left_batches = [l for l in self._make_small_mats(left_file)]
             right_batches = [r for r in self._make_small_mats(right_file)]
             batches = product(left_batches, right_batches)
             batch_count = len(left_batches) * len(right_batches)
-            self.announcer(msg="Made %d left mats and %d right mats for %d batches" %
-                               (len(left_batches), len(right_batches), batch_count))
+            self.announcer(msg="Made {:,d} left mats and {:,d} right mats for {:,d} batches".format(
+                    len(left_batches), len(right_batches), batch_count))
         else:
             batches = []
             batch_count = 0
         if use_redis:
-            with mp.Pool(self._cfg.num_cores, initializer=sbw.init_worker, initargs=(self._cfg, self.announcer, batch_count, self.r)) as pool:
+            with mp.Pool(self._cfg.num_cores, initializer=sbw.init_worker, initargs=(self._cfg, self.announcer,
+                                                                                     batch_count, self.r)) as pool:
                 pool.starmap_async(sbw.process_batch,
                                    [(b[0], b[1], c) for b, c in zip(batches, count(start=1))],
                                    chunksize=10).get()
@@ -145,11 +146,11 @@ class LSASim(object):
     def main(self):
         self.announcer(msg="Started")
         self.load_sentences()
-        self.announcer(msg="Loaded %d sentences" % len(self.sentences))
+        self.announcer(msg="Loaded {:,d} sentences".format(len(self.sentences)))
         self.vectorize_sentences()
         self.announcer(msg="Vectorized sentences")
         self.filter_nulls()
-        self.announcer(msg="Filtered nulls; %d removed, %d retained" % (len(self.nulls), len(self.vectors)))
+        self.announcer(msg="Filtered nulls; {:,d} removed, {:,d} retained".format(len(self.nulls), len(self.vectors)))
 
         if self._cfg.top_n:
             use_redis = True
