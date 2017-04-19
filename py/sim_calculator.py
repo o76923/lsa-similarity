@@ -1,6 +1,5 @@
 import string
-from itertools import product, combinations_with_replacement, count
-
+from itertools import product, combinations_with_replacement, combinations, count
 from gensim.models import LsiModel
 from gensim.corpora import Dictionary
 import numpy as np
@@ -15,6 +14,7 @@ from functools import partial
 from shutil import rmtree
 from os import mkdir, chmod
 from collections import OrderedDict
+from pprint import pprint
 
 
 class LSASim(object):
@@ -49,6 +49,8 @@ class LSASim(object):
         for sentence_file in self._cfg.sentence_files:
             with open("/app/data/%s" % sentence_file) as in_file:
                 new_documents = {}
+                if self._cfg.input_headers:
+                    in_file.readline()
                 for line in in_file.readlines():
                     try:
                         data = line[:-1].split("\t")
@@ -122,7 +124,10 @@ class LSASim(object):
     def append_null_sims(self):
         lines = []
         if self._cfg.pair_mode == 'all':
-            pass
+            for l, r in product(self.nulls, self.vectors):
+                lines.append("{},{},0.0\n".format(min(l, r), max(l, r)))
+            for l, r in combinations(self.nulls, 2):
+                lines.append("{},{},0.0\n".format(l, r))
         elif self._cfg.pair_mode == 'cross':
             left_nulls, right_nulls = self.file_nulls.values()
             for l, r in product(left_nulls, right_nulls):
@@ -143,6 +148,14 @@ class LSASim(object):
                 top_n = zip(keys[part][-self._cfg.top_n:], values[part][-self._cfg.top_n:])
                 out_file.write("".join(["{},{},{:0.4f}\n".format(left, b[0], b[1]) for b in top_n]))
 
+    def make_output_directory(self):
+        try:
+            mkdir("/app/data/output")
+        except FileExistsError:
+            pass
+        finally:
+            chmod("/app/data/output", 0o777)
+
     def main(self):
         self.announcer(msg="Started")
         self.load_sentences()
@@ -161,13 +174,8 @@ class LSASim(object):
 
         self.calculate_similarities(use_redis)
         self.announcer(msg="Calculated all similarities")
-        try:
-            mkdir("/app/data/output")
 
-        except FileExistsError:
-            pass
-        finally:
-            chmod("/app/data/output", 0o777)
+        self.make_output_directory()
         if use_redis:
             self.top_n_writer()
             self.announcer(msg="Wrote sims from redis")

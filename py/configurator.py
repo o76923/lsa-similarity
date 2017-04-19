@@ -1,5 +1,8 @@
 import yaml
 
+CREATE_TASK = 0
+CALCULATE_TASK = 1
+
 
 class SpaceSettings(object):
     dimensions: int
@@ -54,7 +57,7 @@ class TaskSettings(object):
 
 class CreateSettings(TaskSettings):
     space_files: list
-    type = 'create_space'
+    type = CREATE_TASK
 
 
 class CalculateSettings(TaskSettings):
@@ -63,7 +66,9 @@ class CalculateSettings(TaskSettings):
     pair_list: list
     file_name: str
     top_n: int
-    type = 'calculate_sims'
+    input_headers: bool
+    sim_batch_size: int
+    type = CALCULATE_TASK
 
 
 class ConfigSettings(object):
@@ -87,6 +92,7 @@ class ConfigSettings(object):
                     t['space_settings'] = self._read_space_settings(task.space_name)
                     task.space_settings = self._initialize_space_settings(t)
                 task.sentence_files = self._initialize_sentence_files(t)
+                task.input_headers = self._initialize_input_headers(t)
                 task.pair_mode, task.pair_list = self._initialize_pair_mode(t)
                 task.sim_batch_size = self._initialize_calculate_settings(t)
                 task.file_name, task.top_n = self._initialize_calculate_output(t)
@@ -115,6 +121,15 @@ class ConfigSettings(object):
         if "files" in t['from']:
             sentence_files = t['from']['files']
         return sentence_files
+
+    @staticmethod
+    def _initialize_input_headers(t):
+        try:
+            if "headers" in t['from']:
+                return t['from']['headers']
+        except KeyError:
+            return False
+        return False
 
     @staticmethod
     def _initialize_space_settings(t):

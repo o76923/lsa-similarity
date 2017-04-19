@@ -1,7 +1,7 @@
 from datetime import datetime
 from py.space_creator import Creator
 from py.sim_calculator import LSASim
-from py.configurator import ConfigSettings
+from py.configurator import ConfigSettings, CREATE_TASK, CALCULATE_TASK
 from functools import partial
 
 
@@ -13,11 +13,11 @@ if __name__ == "__main__":
     cfg = ConfigSettings()
     echo_message("Delegator", start_time, "Loaded Configuration")
     for task in cfg.tasks:
-        if task.type == 'create_space':
+        if task.type == CREATE_TASK:
             c = Creator(task, partial(echo_message, start=start_time))
             c.start = start_time
             c.main()
-        if task.type == 'calculate_sims':
+        if task.type == CALCULATE_TASK:
             s = LSASim(task, partial(echo_message, start=start_time))
             s.main()
         echo_message("Delegator", start_time, "Finished Task")
