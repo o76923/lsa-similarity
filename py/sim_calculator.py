@@ -1,6 +1,5 @@
 import string
 from itertools import product, combinations_with_replacement, count
-from pprint import pprint
 
 from gensim.models import LsiModel
 from gensim.corpora import Dictionary
@@ -14,9 +13,8 @@ import py.sim_batch_worker as sbw
 import subprocess
 from functools import partial
 from shutil import rmtree
-from os import mkdir
+from os import mkdir, chmod
 from collections import OrderedDict
-import redis
 
 
 class LSASim(object):
@@ -33,7 +31,7 @@ class LSASim(object):
         self.file_keys = OrderedDict()
         self.file_nulls = OrderedDict()
         self.announcer = partial(announcer, process="Calculator")
-        self.r = redis.StrictRedis(host='localhost', port=6379, password='foobared', decode_responses=True)
+        # self.r = redis.StrictRedis(host='localhost', port=6379, password='foobared', decode_responses=True)
 
     def _load_stopwords(self, filename):
         with open(filename) as in_file:
@@ -115,7 +113,7 @@ class LSASim(object):
                                    chunksize=10).get()
 
     def merge_similarity_files(self):
-        subprocess.run("cat /app/data/temp_sim/sims-*.csv > /app/data/sims.csv", shell=True)
+        subprocess.run("cat /app/data/temp_sim/sims-*.csv > /app/data/output/%s" % self._cfg.file_name, shell=True)
         self.announcer(msg="Catted all files to sims.csv")
         rmtree("/app/data/temp_sim")
         self.announcer(msg="Removed temp_sims")
@@ -128,7 +126,7 @@ class LSASim(object):
             left_nulls, right_nulls = self.file_nulls.values()
             for l, r in product(left_nulls, right_nulls):
                 lines.append("{},{},0.0\n".format(l, r))
-        with open("/app/data/sims.csv", "a") as out_file:
+        with open("/app/data/output/%s" % self._cfg.file_name, "a") as out_file:
             out_file.write("".join(lines))
 
     def top_n_writer(self):
@@ -162,6 +160,13 @@ class LSASim(object):
 
         self.calculate_similarities(use_redis)
         self.announcer(msg="Calculated all similarities")
+        try:
+            mkdir("/app/data/output")
+
+        except FileExistsError:
+            pass
+        finally:
+            chmod("/app/data/output", 0o777)
         if use_redis:
             self.top_n_writer()
             self.announcer(msg="Wrote sims from redis")

@@ -191,12 +191,12 @@ class ConfigSettings(object):
         top_n = None
         try:
             left_min_sim = t['output']['similarity_count']['left']
-            top_n = left_min_sim
+            top_n = int(left_min_sim)
         except KeyError:
             try:
                 min_sim = int(t['output']['similarity_count'])
                 top_n = min_sim
-            except TypeError:
+            except (TypeError, KeyError):
                 pass
         return sim_file_name, top_n
 

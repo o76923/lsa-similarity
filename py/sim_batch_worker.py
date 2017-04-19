@@ -5,14 +5,13 @@ import re
 from functools import partial
 import redis
 from py.configurator import CalculateSettings
-from pprint import pprint
 
 
 class SimBatchWorker(object):
 
     def __init__(self, cfg: CalculateSettings, announcer, batch_count, r: redis.StrictRedis=None):
         self._cfg = cfg
-        self.use_redis = (self._cfg.top_n > 0)
+        self.use_redis = (self._cfg.top_n is not None) and (self._cfg.top_n > 0)
         self.process_id = int(re.search("(\d+)$", mp.current_process().name).group(1))
         self.announcer = partial(announcer, process="SimBatchWorker-%d" % self.process_id)
         self.batch_count = batch_count//1000
