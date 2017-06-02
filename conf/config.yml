@@ -1,32 +1,31 @@
 tasks:
- - type: create_space
-   name: News
-   space_settings:
-     stem: true
-     case_insensitive: true
-     dimensions: 300
-     remove:
-       - punctuation
-       - singletons
-       - numbers
-       - stopwords:
-           library: nltk
-   from:
-     document_scope: line
-     files:
-       - paragraph_News.txt
-  - type: calculate_sims
-    space: News
+  - type: create_space
+    space: PR
+    space_settings:
+      stem: false
+      case_sensitive: false
+      dimensions: 500
+      remove:
+        - punctuation
+        - singletons
+        - numbers
+        - stopwords:
+            library: nltk
+    from:
+      document_scope: line
+      files:
+        - paragraphs/PR.txt
+  - type: calculate_similarity
+    space: Bus
     from:
       files:
-        - MIDUSquestions.txt
-        - CDEnames.txt
-      pairs: cross
-    options:
-      batch_size: 100
+        - input/name.txt
+      pairs: all
+      headers: true
+      numbered: true
     output:
-      filename: sims_News_2.csv
-      similarity_count:
-        left: 10
+      format: H5
+      file_name: name.h5
+      ds_name: lsa_bus
 options:
-  cores: 20
+  cores: 19

@@ -1,0 +1,37 @@
+---
+name: "Latent Semant Analysis (LSA)"
+description: "Latent Semantic Analysis is an algorithm that uses a word co-occurence matrix to find the similarities of words then applies that similarty to documents. That word co-occurence matrix is dimension reduced using Singular Value Decomposition (SVD) to create a low rank approximation of words within a vector space. New documents are projected into that space by adding together the words in those documents. Then, similarities between those projections are calculated by using the cosine distance between those vectors."
+options:
+  -
+    name: space
+    description: "When using LSA, you project words into a semantic space. This space consists of both the collection of documents used and some of the choices made during creation, notably: case sensitivity, how words are stemmed, which stopwords are to be removed, and how words are weighted."
+    choices:
+      -
+        name: Bus
+        description: "<dl> <dt>Documents</dt> <dd>Excerpts from The Wall Street Journal, Business Week, Forbes and Fortune with around 85,000 documents between the years 1998–2007.</dd> <dt>Dimensionality</dt> <dd>500</dd> <dt>Stemming</dt> <dd>None</dd> <dt>Case Sensitivity</dt> <dd>Sensitive</dd> </dl>"
+      -
+        name: News
+        description: "<dl> <dt>Documents</dt> <dd>Excerpts from The New York Times, Los Angeles Times, Chicago Tribune, The Washington Post, The Boston Globe, USA Today, Houston Chronicle, San Francisco Chronicle and The Denver Post with around 160,000 documents.</dd> <dt>Dimensionality</dt> <dd>500</dd> <dt>Stemming</dt> <dd>None</dd> <dt>Case Sensitivity</dt> <dd>Sensitive</dd> </dl>"
+      -
+        name: PR
+        description: "<dl> <dt>Documents</dt> <dd>Roughly 200,000 documents from PR Newswire.</dd> <dt>Dimensionality</dt> <dd>500</dd> <dt>Stemming</dt> <dd>None</dd> <dt>Case Sensitivity</dt> <dd>Sensitive</dd> </dl>"
+      -
+        name: IS
+        description: "<dl> <dt>Documents</dt> <dd>Articles from MISQ and ISR between 1990 and 2009</dd> <dt>Dimensionality</dt> <dd>500</dd> <dt>Stemming</dt> <dd>None</dd> <dt>Case Sensitivity</dt> <dd>Sensitive</dd> </dl>"
+      -
+        name: Psych
+        description: "<dl> <dt>Documents</dt> <dd>Articles from JAP between 2002 and 2003</dd> <dt>Dimensionality</dt> <dd>500</dd> <dt>Stemming</dt> <dd>None</dd> <dt>Case Sensitivity</dt> <dd>Sensitive</dd> </dl>"
+      -
+        name: Inter
+        description: "<dl> <dt>Documents</dt> <dd>Combination of the IS and Psych data sources</dd> <dt>Dimensionality</dt> <dd>500</dd> <dt>Stemming</dt> <dd>None</dd> <dt>Case Sensitivity</dt> <dd>Sensitive</dd> </dl>"
+      -
+        name: Management
+        description: "<dl> <dt>Documents</dt> <dd>Roughly 2000 articles spanning over 50 years of JAP, ASQ, and AMJ</dd> <dt>Dimensionality</dt> <dd>500</dd> <dt>Stemming</dt> <dd>None</dd> <dt>Case Sensitivity</dt> <dd>Sensitive</dd> </dl>"
+  -
+    name: distance_metric
+    description: "While cosine similarity is the default algorithm for comparing vectors, some researchers have found the pearson correlation between vectors to be useful as well."
+    choices:
+      -
+        name: cosine
+      -
+        name: r

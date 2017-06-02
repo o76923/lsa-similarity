@@ -5,7 +5,7 @@ from py.configurator import SpaceSettings
 
 class DocumentCleaner(object):
     def __init__(self, config: SpaceSettings):
-        self.case_insensitive = config.case_insensitive
+        self.case_sensitive = config.case_sensitive
         self.remove_punctuation = config.remove_punctuation
 
         if config.remove_numbers:
@@ -29,7 +29,7 @@ class DocumentCleaner(object):
 
     def clean_document(self, document):
         try:
-            if self.case_insensitive:
+            if not self.case_sensitive:
                 document = document.lower()
             if self.remove_punctuation:
                 document = self.patt.sub(' ', document)

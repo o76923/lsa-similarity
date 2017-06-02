@@ -10,7 +10,7 @@ class Vectorizer(object):
     def vectorize(self, key, document):
         bow = self.dictionary.doc2bow(document)
         ms = self.model[bow]
-        return key, np.array([n[1] for n in ms])
+        return key, np.array([n[1] for n in ms], dtype=np.float32)
 
 v: Vectorizer
 

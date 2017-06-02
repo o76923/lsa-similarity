@@ -1,25 +1,30 @@
 import os
 import multiprocessing as mp
+from functools import partial
 from gensim.corpora import Dictionary
 from gensim.models import LogEntropyModel, LsiModel
 from py.document_cleaner import init_worker, clean_document
-from py.configurator import CreateSettings
-from functools import partial
+from py.configurator import Create
+from py.utils import *
 
 
 class Creator(object):
 
-    def __init__(self, config: CreateSettings, announcer: partial):
+    def __init__(self, config: Create, start_time):
         self._cfg = config
         self.documents = list()
-        self.announcer = partial(announcer, process="Creator")
+        self.announcer = partial(announcer, process="Creator", start=start_time)
 
     def load_documents(self):
         self.documents = []
-        for paragraph_file in self._cfg.space_files:
+        for paragraph_file in self._cfg.source_files:
             with open("/app/data/%s" % paragraph_file) as in_file:
-                in_file.readline()
-                new_documents = in_file.readlines()
+                if self._cfg.headers:
+                    in_file.readline()
+                if self._cfg.numbered:
+                    new_documents = [l[:-1].split("\t")[1] for l in in_file.readlines()]
+                else:
+                    new_documents = in_file.readlines()
                 self.documents.extend(new_documents)
 
     def create_dictionary(self, clean_documents):
@@ -66,5 +71,5 @@ class Creator(object):
         self.announcer(msg="Saved Dictionary")
         model.save('/app/data/spaces/%s/lsi' % self._cfg.space_name)
         self.announcer(msg="Saved LSA Model")
-        self._cfg.space_settings.save('/app/data/spaces/%s' % self._cfg.space_name)
+        self._cfg.space_settings.save()
         self.announcer(msg="Saved Settings")

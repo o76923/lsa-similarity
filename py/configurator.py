@@ -1,36 +1,76 @@
+import multiprocessing as mp
+import os
+import warnings
 import yaml
+from uuid import uuid4
+from typing import Optional, List, Text
+from py.utils import *
 
-CREATE_TASK = 0
-CALCULATE_TASK = 1
+
+CONFIG_FILE = "/app/data/"+os.environ.get("CONFIG_FILE", "config.yml")
 
 
 class SpaceSettings(object):
+    space_name: Text
     dimensions: int
+    stem: bool
+    case_sensitive: bool
     remove_punctuation: bool
     remove_numbers: bool
     remove_singletons: bool
-    stem: bool
-    case_insensitive: bool
-    stopwords: list
+    remove_stopwords: bool
+    stopwords: Optional[Text]
 
-    def __getattr__(self, item):
-        if item in self.__dict__.keys():
-            return self.__dict__[item]
-        else:
-            return False
+    def __init__(self, space_name, load=False, **kwargs):
+        self.space_name = space_name
+        if load:
+            with open("/app/data/spaces/{}/space_config.yml".format(space_name)) as in_file:
+                kwargs = yaml.load(in_file)
+        try:
+            self.dimensions = kwargs["dimensions"]
+        except:
+            raise Exception("Number of dimensions not specified")
 
-    def __setattr__(self, key, value):
-        self.__dict__[key] = value
+        try:
+            self.stem = kwargs["stem"]
+        except KeyError:
+            self.stem = False
 
-    def __setitem__(self, key, value):
-        self.__dict__[key] = value
+        try:
+            self.case_sensitive = kwargs["case_sensitive"]
+        except KeyError:
+            self.case_sensitive = False
 
-    def save(self, path):
-        with open("%s/space_config.yml" % path, "w") as out_file:
+        try:
+            if "punctuation" in kwargs["remove"]:
+                self.remove_punctuation = True
+            else:
+                self.remove_punctuation = False
+            if "numbers" in kwargs["remove"]:
+                self.remove_numbers = True
+            else:
+                self.remove_numbers = False
+            if "singletons" in kwargs["remove"]:
+                self.remove_singletons = True
+            else:
+                self.remove_singletons = False
+            if "stopwords" in kwargs["remove"]:
+                self.remove_stopwords = True
+                with open("{}".format(kwargs["remove"]["stopwords"])) as stopwords_file:
+                    self.stopwords = [line[:-1] for line in stopwords_file]
+
+            else:
+                self.remove_stopwords = False
+                self.stopwords = None
+        except KeyError:
+            pass
+
+    def save(self):
+        with open("/app/data/spaces/{}/space_config.yml".format(self.space_name), "w") as out_file:
             data = {
                 "dimensions": self.dimensions,
                 "stem": self.stem,
-                "case_insensitive": self.case_insensitive,
+                "case_sensitive": self.case_sensitive,
                 "remove": []
             }
             if self.remove_punctuation:
@@ -41,194 +81,185 @@ class SpaceSettings(object):
                 data["remove"].append("singletons")
             if self.stopwords:
                 data['stopwords'] = True
-                with open("%s/stopwords.txt" % path, "w") as sw_file:
+                with open("%s/stopwords.txt" % self.space_name, "w") as sw_file:
                     sw_file.write("\n".join(self.stopwords))
             else:
                 data['stopwords'] = False
             yaml.dump(data, out_file)
 
 
-class TaskSettings(object):
-    space_name: str
+class Task(object):
+    num_cores: int
+    temp_dir: Text
+    type: TASK_TYPE
+
+    def __init__(self, global_settings, task_settings):
+        self.num_cores = global_settings["num_cores"]
+        self.temp_dir = global_settings["temp_dir"]
+
+
+class Create(Task):
+    space_name: Text
+    source_files: List[Text]
     space_settings: SpaceSettings
-    type: str
+    headers: bool
+    numbered: bool
+
+    def __init__(self, global_settings, task_settings):
+        super().__init__(global_settings, task_settings)
+        self.type = TASK_TYPE.CREATE
+        self.source_files = task_settings["from"]["files"]
+        self.space_name = task_settings["space"]
+        try:
+            self.headers = task_settings["from"]["headers"]
+        except KeyError:
+            self.headers = False
+        try:
+            self.numbered = task_settings["from"]["numbered"]
+        except KeyError:
+            self.numbered = False
+        self.space_settings = SpaceSettings(space_name=task_settings["space"],
+                                            load=False,
+                                            dimensions=task_settings["space_settings"]["dimensions"],
+                                            stem=task_settings["space_settings"]["stem"],
+                                            remove=task_settings["space_settings"]["remove"],
+                                            case_sensitive=task_settings["space_settings"]["case_sensitive"])
+
+
+class Project(Task):
+    space_name: Text
+    source_files: List[Text]
+    space_settings: Optional[SpaceSettings]
+    headers: bool
+    numbered: bool
+    output_format: OUTPUT_FORMAT
+    output_file: Optional[Text]
+
+    def __init__(self, global_settings, task_settings):
+        super().__init__(global_settings, task_settings)
+        self.type = TASK_TYPE.PROJECT
+        self.space_name = task_settings["space"]
+        self.source_files = task_settings["from"]["files"]
+        try:
+            self.headers = task_settings["from"]["headers"]
+        except KeyError:
+            self.headers = False
+        try:
+            self.numbered = task_settings["from"]["numbered"]
+        except KeyError:
+            self.numbered = False
+        if "output" in task_settings:
+            try:
+                self.output_format = OUTPUT_FORMAT[task_settings["output"]["format"]]
+            except KeyError:
+                self.output_format = OUTPUT_FORMAT.H5
+            try:
+                self.output_file = task_settings["output"]["file_name"]
+            except:
+                raise Exception("You must specify an output file_name when saving output")
+            try:
+                self.ds_name = task_settings["output"]["ds_name"]
+            except KeyError:
+                from pprint import pprint
+                pprint(task_settings["output"])
+                self.ds_name = 'sim'
+                warnings.warn("No ds_name specified, using 'sim' as name of data source in vectors")
+
+
+class Calculate(Task):
+    space_name: Text
+    output_file: Text
+    ds_name: Text
+
+    def __init__(self, global_settings, task_settings):
+        super().__init__(global_settings, task_settings)
+        self.type = TASK_TYPE.CALCULATE
+        self.space_name = task_settings["space"]
+        global_settings["tasks"].append(Project(global_settings, task_settings))
+
+        try:
+            self.output_format = OUTPUT_FORMAT[task_settings["output"]["format"]]
+        except KeyError:
+            self.output_format = OUTPUT_FORMAT.H5
+        try:
+            self.output_file = task_settings["output"]["file_name"]
+        except KeyError:
+            raise Exception("You must specify an output file_name when saving output")
+        try:
+            self.ds_name = task_settings["output"]["ds_name"]
+        except KeyError:
+            self.ds_name = 'sim'
+            warnings.warn("No ds_name specified, using 'sim' as name of data source in sims")
+
+        if self.output_format == OUTPUT_FORMAT.CSV:
+            global_settings["tasks"].append(Convert(global_settings, task_settings))
+
+
+class Convert(Task):
+    output_file: Text
+    ds_name: Text
+
+    def __init__(self, global_settings, task_settings):
+        super().__init__(global_settings, task_settings)
+
+        self.type = TASK_TYPE.CONVERT
+        try:
+            self.output_file = task_settings["output"]["file_name"]
+        except KeyError:
+            raise Exception("You must specify an output file_name when saving output")
+        try:
+            self.ds_name = task_settings["output"]["ds_name"]
+        except KeyError:
+            self.ds_name = 'sim'
+            warnings.warn("No ds_name specified, using 'sim' as name of data source in sims")
+
+
+class Config(object):
+    tasks: List[Task]
+    temp_dir: str
     num_cores: int
 
-
-class CreateSettings(TaskSettings):
-    space_files: list
-    type = CREATE_TASK
-
-
-class CalculateSettings(TaskSettings):
-    sentence_files: list
-    pair_mode: str
-    pair_list: list
-    file_name: str
-    top_n: int
-    input_headers: bool
-    sim_batch_size: int
-    output_null: str
-    type = CALCULATE_TASK
-
-
-class ConfigSettings(object):
-
-    def __init__(self, filename="/app/data/config.yml"):
-        self._read_config(filename)
+    def __init__(self):
+        self._read_config(CONFIG_FILE)
+        self._load_global()
+        self.temp_dir = "/app/data/temp/lsa_{}".format(uuid4())
         self.tasks = []
 
-        for t in self._cfg['tasks']:
-            if t["type"] == "create_space":
-                task = CreateSettings()
-                task.space_name = t['name']
-                task.space_settings = self._initialize_space_settings(t)
-                task.space_files = self._initialize_space_files(t)
-            elif t["type"] == "calculate_sims":
-                task = CalculateSettings()
-                task.space_name = t['space']
-                try:
-                    task.space_settings = self.tasks[0].space_settings
-                except IndexError:
-                    t['space_settings'] = self._read_space_settings(task.space_name)
-                    task.space_settings = self._initialize_space_settings(t)
-                task.sentence_files = self._initialize_sentence_files(t)
-                task.input_headers = self._initialize_input_headers(t)
-                task.pair_mode, task.pair_list = self._initialize_pair_mode(t)
-                task.sim_batch_size = self._initialize_calculate_settings(t)
-                task.file_name, task.top_n = self._initialize_calculate_output(t)
-                task.output_null = self._initialize_null_output(t)
-            task.num_cores = self._initialize_global_options()
-            self.tasks.append(task)
+        global_settings = {
+            "temp_dir": self.temp_dir,
+            "num_cores": self.num_cores,
+            "tasks": self.tasks
+        }
+
+        for task in self._cfg['tasks']:
+            self.tasks.append(self._load_task(global_settings, task))
 
     def _read_config(self, filename):
         with open(filename) as in_file:
             self._cfg = yaml.load(in_file.read())
 
-    def _read_space_settings(self, space_name):
-        with open("/app/data/spaces/%s/space_config.yml" % space_name) as in_file:
-            space_settings = yaml.load(in_file.read())
-        return space_settings
-
-    @staticmethod
-    def _initialize_space_files(t):
-        space_files = []
-        if "files" in t['from']:
-            space_files = t['from']['files']
-        return space_files
-
-    @staticmethod
-    def _initialize_sentence_files(t):
-        sentence_files = []
-        if "files" in t['from']:
-            sentence_files = t['from']['files']
-        return sentence_files
-
-    @staticmethod
-    def _initialize_input_headers(t):
+    def _load_global(self):
         try:
-            if "headers" in t['from']:
-                return t['from']['headers']
+            self.num_cores = int(self._cfg["options"]["cores"])
+            return
         except KeyError:
-            pass
-        return False
+            warnings.warn("Number of cores not specified, defaulting to one less than max")
+        except TypeError:
+            warnings.warn("The number of cores must be an int, defaulting to one less than max insetad")
+        finally:
+            self.num_cores = mp.cpu_count() - 1
 
-    @staticmethod
-    def _initialize_null_output(t):
+    def _load_task(self, global_settings, task_settings):
         try:
-            if "nulls" in t['output']:
-                return str(t['output']['nulls'])
-        except KeyError:
-            pass
-        return "NULL"
-
-    @staticmethod
-    def _initialize_space_settings(t):
-
-        space_settings = SpaceSettings()
-
-        # check things with default true
-        # make them true if absent, present without a value, or present with true and false if present with false
-        for param in ("stem", "case_insensitive"):
-            if param in t['space_settings']:
-                try:
-                    space_settings[param] = t['space_settings'][param]
-                except AttributeError:
-                    space_settings[param] = True
+            if task_settings["type"] == "create_space":
+                return Create(global_settings, task_settings)
+            elif task_settings["type"] == "project_sentences":
+                return Project(global_settings, task_settings)
+            elif task_settings["type"] == "calculate_similarity":
+                return Calculate(global_settings, task_settings)
+            elif task_settings["type"] == "format_convert":
+                return Convert(global_settings, task_settings)
             else:
-                space_settings[param] = True
-        
-        # check things that should be removed
-        # set to remove if present or not if absent
-        for param in ("punctuation", "numbers", "singletons"):
-            if param in t['space_settings']['remove']:
-                space_settings['remove_%s' % param] = True
-            else:
-                space_settings['remove_%s' % param] = False
-        
-        # pull out a list of stopwords from the nltk library
-        for r in t['space_settings']['remove']:
-            try:
-                if 'stopwords' in r.keys():
-                    from nltk.corpus import stopwords
-                    space_settings.stopwords = stopwords.words('english')
-            except AttributeError:
-                pass
-
-        # set dimensions, default 300
-        if 'dimensions' in t['space_settings']:
-            space_settings.dimensions = t['space_settings']['dimensions']
-        else:
-            space_settings.dimensions = 300
-
-        return space_settings
-
-    @staticmethod
-    def _initialize_pair_mode(t):
-        pair_list = []
-        if 'pairs' in t['from']:
-            pair_mode = t['from']['pairs']
-            if pair_mode in ('all', 'cross'):
-                pair_mode = pair_mode
-            else:
-                pair_mode = 'list'
-                for p in t['from']['pairs']:
-                    with open("/app/data/%s" % p) as in_file:
-                        new_pairs = [x for x in in_file.readlines()]
-                        pair_list.extend(new_pairs)
-        else:
-            pair_mode = 'all'
-        return pair_mode, pair_list
-
-    @staticmethod
-    def _initialize_calculate_settings(t):
-        try:
-            sim_batch_size = t['options']['batch_size']
+                raise Exception("Invalid task type supplied")
         except KeyError:
-            sim_batch_size = 100
-        return sim_batch_size
-
-    @staticmethod
-    def _initialize_calculate_output(t):
-        try:
-            sim_file_name = t['output']['filename']
-        except KeyError:
-            sim_file_name = "sims.csv"
-        top_n = None
-        try:
-            left_min_sim = t['output']['similarity_count']['left']
-            top_n = int(left_min_sim)
-        except KeyError:
-            try:
-                min_sim = int(t['output']['similarity_count'])
-                top_n = min_sim
-            except (TypeError, KeyError):
-                pass
-        return sim_file_name, top_n
-
-    def _initialize_global_options(self):
-        try:
-            return self._cfg['options']['cores']
-        except KeyError:
-            from multiprocessing import cpu_count
-            return cpu_count()
+            raise Exception("No task type specified")
