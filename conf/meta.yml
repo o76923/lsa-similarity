@@ -1,5 +1,6 @@
 ---
-name: "Latent Semant Analysis (LSA)"
+long_name: "Latent Semant Analysis"
+short_name: "LSA"
 description: "Latent Semantic Analysis is an algorithm that uses a word co-occurence matrix to find the similarities of words then applies that similarty to documents. That word co-occurence matrix is dimension reduced using Singular Value Decomposition (SVD) to create a low rank approximation of words within a vector space. New documents are projected into that space by adding together the words in those documents. Then, similarities between those projections are calculated by using the cosine distance between those vectors."
 options:
   -
@@ -33,5 +34,7 @@ options:
     choices:
       -
         name: cosine
+        description: "Cosine similarity between two vectors. This is defined to be $1 - \\frac{u \\boldsymbol{\\cdot} v}{\\norm{u} \\times \\norm{v}}$."
       -
         name: r
+        description: "Correlation between two vectors. This is defined to be $1 - \\frac{(u - \\bar{u}) \\boldsymbol{\\cdot} (v - \\bar{v})}{\\norm{(u - \\bar{u})} \\times \\norm{(v - \\bar{v})}}$."
