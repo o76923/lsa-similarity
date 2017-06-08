@@ -24,11 +24,5 @@ RUN apt-get update \
     && CC=mpicc HDF5_MPI="ON" pip install --no-binary=h5py h5py \
     && rm -rf /var/lib/apt/lists/*
 
-#RUN apt-get update \
-#    && apt-get install -y libhdf5-openmpi-dev openmpi-bin \
-#    && pip install mpi4py h5py \
-#    && rm -rf /var/lib/apt/lists/*
-#
-
 RUN pip install sklearn
 COPY ./ /app/
