@@ -126,6 +126,14 @@ class Create(Task):
                                             case_sensitive=task_settings["space_settings"]["case_sensitive"])
 
 
+class Rotate(Task):
+    space_name: Text
+
+    def __init__(self, global_settings, task_settings):
+        super().__init__(global_settings)
+        self.type = TASK_TYPE.ROTATE
+
+
 class Project(Task):
     space_name: Text
     source_files: List[Text]
