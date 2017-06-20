@@ -132,6 +132,7 @@ class Rotate(Task):
     def __init__(self, global_settings, task_settings):
         super().__init__(global_settings)
         self.type = TASK_TYPE.ROTATE
+        self.space_name = task_settings["space"]
 
 
 class Project(Task):
@@ -261,6 +262,8 @@ class Config(object):
         try:
             if task_settings["type"] == "create_space":
                 return Create(global_settings, task_settings)
+            elif task_settings["type"] == "rotate_space":
+                return Rotate(global_settings, task_settings)
             elif task_settings["type"] == "project_sentences":
                 return Project(global_settings, task_settings)
             elif task_settings["type"] == "calculate_similarity":
