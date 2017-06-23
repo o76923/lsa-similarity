@@ -1,10 +1,10 @@
 ---
-long_name: "Latent Semantic Analysis"
+display_name: "Latent Semantic Analysis"
 short_name: LSA
 description: "Latent Semantic Analysis is an algorithm that uses a word co-occurence matrix to find the similarities of words then applies that similarty to documents. That word co-occurence matrix is dimension reduced using Singular Value Decomposition (SVD) to create a low rank approximation of words within a vector space. New documents are projected into that space by adding together the words in those documents. Then, similarities between those projections are calculated by using the cosine distance between those vectors."
 options:
   -
-    long_name: "Semantic space"
+    display_name: "Semantic space"
     short_name: space
     description: "When using LSA, you project words into a semantic space. This space consists of both the collection of documents used and some of the choices made during creation, notably: case sensitivity, how words are stemmed, which stopwords are to be removed, and how words are weighted."
     default: Bus
@@ -31,7 +31,7 @@ options:
         name: Management
         description: "<dl> <dt>Documents</dt> <dd>Roughly 2000 articles spanning over 50 years of JAP, ASQ, and AMJ</dd> <dt>Dimensionality</dt> <dd>500</dd> <dt>Stemming</dt> <dd>None</dd> <dt>Case Sensitivity</dt> <dd>Sensitive</dd> </dl>"
   -
-    long_name: "Distance metric"
+    display_name: "Distance metric"
     short_name: distance_metric
     description: "While cosine similarity is the default algorithm for comparing vectors, some researchers have found the pearson correlation between vectors to be useful as well."
     default: cosine

@@ -2,7 +2,7 @@ from datetime import datetime
 import subprocess
 from enum import Enum
 
-TASK_TYPE = Enum('TASK_TYPE', 'CREATE PROJECT CALCULATE CONVERT ROTATE')
+TASK_TYPE = Enum('TASK_TYPE', 'CREATE PROJECT CALCULATE ROTATE')
 PAIR_MODE = Enum('PAIR_MODE', 'ALL CROSS LIST')
 OUTPUT_FORMAT = Enum('OUTPUT_FORMAT', 'H5 CSV')
 

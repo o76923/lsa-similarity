@@ -1,10 +1,10 @@
+import os
 from functools import partial
-from py.configurator import Rotate
-from py.utils import *
-
 import numpy as np
 from numpy.linalg import svd
 from gensim.models import LsiModel
+from py.configurator import Rotate
+from py.utils import *
 
 
 def varimax(phi, gamma=1, q=20, tol=1e-6):
@@ -28,6 +28,9 @@ class Rotator(object):
         self._cfg = config
         self.announcer = partial(announcer, process="Rotator", start=start_time)
 
+    def check_if_rotation_exists(self):
+        return os.path.isfile("/app/data/spaces/{}/lsi_rotated".format(self._cfg.space_name))
+
     def rotate(self):
         self.announcer("starting to rotate")
         model = LsiModel.load("/app/data/spaces/{}/lsi".format(self._cfg.space_name))
@@ -38,4 +41,7 @@ class Rotator(object):
         self.announcer("saved rotated matrix")
 
     def main(self):
-        self.rotate()
+        if not self.check_if_rotation_exists():
+            self.rotate()
+        else:
+            self.announcer("Rotation already exists, will not be recreated")

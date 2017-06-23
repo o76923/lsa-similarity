@@ -141,6 +141,7 @@ class Project(Task):
     space_settings: Optional[SpaceSettings]
     headers: bool
     numbered: bool
+    rotated: bool
     output_format: OUTPUT_FORMAT
     output_file: Optional[Text]
 
@@ -157,6 +158,12 @@ class Project(Task):
             self.numbered = task_settings["from"]["numbered"]
         except KeyError:
             self.numbered = False
+        try:
+            self.rotated = task_settings["options"]["rotated"]
+            if self.rotated:
+                global_settings["tasks"].append(Rotate(global_settings, task_settings))
+        except KeyError:
+            self.rotated = False
         if "output" in task_settings:
             try:
                 self.output_format = OUTPUT_FORMAT[task_settings["output"]["format"]]
@@ -169,8 +176,6 @@ class Project(Task):
             try:
                 self.ds_name = task_settings["output"]["ds_name"]
             except KeyError:
-                from pprint import pprint
-                pprint(task_settings["output"])
                 self.ds_name = 'sim'
                 warnings.warn("No ds_name specified, using 'sim' as name of data source in vectors")
 
@@ -179,6 +184,7 @@ class Calculate(Task):
     space_name: Text
     output_file: Text
     ds_name: Text
+    output_format: OUTPUT_FORMAT
 
     def __init__(self, global_settings, task_settings):
         super().__init__(global_settings)
@@ -200,28 +206,6 @@ class Calculate(Task):
             self.ds_name = 'sim'
             warnings.warn("No ds_name specified, using 'sim' as name of data source in sims")
 
-        if self.output_format == OUTPUT_FORMAT.CSV:
-            global_settings["tasks"].append(Convert(global_settings, task_settings))
-
-
-class Convert(Task):
-    output_file: Text
-    ds_name: Text
-
-    def __init__(self, global_settings, task_settings):
-        super().__init__(global_settings)
-
-        self.type = TASK_TYPE.CONVERT
-        try:
-            self.output_file = task_settings["output"]["file_name"]
-        except KeyError:
-            raise Exception("You must specify an output file_name when saving output")
-        try:
-            self.ds_name = task_settings["output"]["ds_name"]
-        except KeyError:
-            self.ds_name = 'sim'
-            warnings.warn("No ds_name specified, using 'sim' as name of data source in sims")
-
 
 class Config(object):
     tasks: List[Task]
@@ -231,7 +215,7 @@ class Config(object):
     def __init__(self):
         self._read_config(CONFIG_FILE)
         self._load_global()
-        self.temp_dir = "/app/data/temp/lsa_{}".format(uuid4())
+        self.temp_dir = "/app/data/tmp/lsa_{}".format(uuid4())
         self.tasks = []
 
         global_settings = {
@@ -268,8 +252,6 @@ class Config(object):
                 return Project(global_settings, task_settings)
             elif task_settings["type"] == "calculate_similarity":
                 return Calculate(global_settings, task_settings)
-            elif task_settings["type"] == "format_convert":
-                return Convert(global_settings, task_settings)
             else:
                 raise Exception("Invalid task type supplied")
         except KeyError:
