@@ -73,13 +73,15 @@ class Projector(object):
             shutil.chown("/app/data/output/", user=1000)
         except FileExistsError:
             pass
-        f = h5py.File("/app/data/output/{}".format(self._cfg.output_file), 'a')
+        if self._cfg.output_format == OUTPUT_FORMAT.H5:
+            f = h5py.File('/app/data/output/{}'.format(self._cfg.output_file), 'a')
+        else:
+            f = h5py.File('{}/{}.h5'.format(self._cfg.temp_dir, self._cfg.output_file), 'a')
         shutil.chown(f.filename, user=1000)
         sorted_vectors = [(k, v) for (k, v) in sorted(self.vectors.items(), key=lambda x: x[0])]
         # unused_keys = [k for k in self.raw_sentences if k not in [x[0] for x in sorted_vectors]]
         vec_array = np.stack([x[1] for x in sorted_vectors])
         string_dt = h5py.h5t.special_dtype(vlen=str)
-        # float_dt = h5py.h5t.py_create(np.float16)
         vectors = f.require_group("vectors")
         vector = vectors.require_dataset(self._cfg.ds_name,
                                          dtype=np.float32,
@@ -92,7 +94,7 @@ class Projector(object):
                                          )
         in_data = f.require_group("input")
         in_data.require_dataset("id",
-                                dtype=np.uint16,
+                                dtype='u8',
                                 shape=(len(sorted_vectors),),
                                 data=np.array([x[0] for x in sorted_vectors]))
         in_data.require_dataset("text",

@@ -1,5 +1,6 @@
 from py.utils import *
 from functools import partial
+from itertools import combinations
 import h5py
 import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
@@ -11,17 +12,20 @@ CHUNK_SIZE = 100
 class SimCalculator(object):
     def __init__(self, config: Calculate, start_time):
         self.announcer = partial(announcer, process="Calculator", start=start_time)
-        self.f = h5py.File('/app/data/output/{}'.format(config.output_file), 'r+')
-        self.vectors = self.f['/vectors/{}'.format(config.ds_name)]
+        self._cfg = config
+        if config.output_format == OUTPUT_FORMAT.H5:
+            self.f = h5py.File('/app/data/output/{}'.format(self._cfg.output_file), 'r+')
+        else:
+            self.f = h5py.File('{}/{}.h5'.format(self._cfg.temp_dir, self._cfg.output_file), 'r+')
+        self.vectors = self.f['/vectors/{}'.format(self._cfg.ds_name)]
         self.sim = self.f.require_group("sim")
-        self.ds = self.sim.create_dataset(config.ds_name,
+        self.ds = self.sim.create_dataset(self._cfg.ds_name,
                                           dtype=np.float32,
                                           shape=(len(self.vectors), len(self.vectors)),
                                           fillvalue=0.0,
                                           compression="gzip",
                                           compression_opts=9,
                                           shuffle=True)
-        # self.CHUNK_COUNT = (((len(self.vectors) // CHUNK_SIZE) + 1) * ((len(self.vectors) // CHUNK_SIZE) + 2)) // 2
 
     def calculate_sims(self, left_min, left_max, right_min, right_max):
         sims = cosine_similarity(self.vectors[left_min:left_max, :], self.vectors[right_min:right_max])
@@ -38,12 +42,25 @@ class SimCalculator(object):
             if left_index % 10 == 0:
                 self.announcer("Chunk {:>3d}/{:>3d} completed".format(left_index, len(chunks)))
 
-    def close(self):
-        self.f.flush()
-        self.f.close()
+    def convert_to_csv(self):
+        with open('/app/data/output/{}'.format(self._cfg.output_file), "w") as out_file:
+            i = 0
+            buffer = ""
+            for (left_index, left_id), (right_index, right_id) in combinations(enumerate(self.f["/input/id"]), 2):
+                buffer += "{},{},{:0.3f}\n".format(left_id, right_id, self.ds[left_index, right_index])
+                i += 1
+                if i == 10000:
+                    out_file.write(buffer)
+                    buffer = ""
+                    i = 0
+            out_file.write(buffer)
 
     def main(self):
         self.announcer("Started sim calculation task")
         for ((lm, lx), (rm, rx)) in self.pair_iterator():
             self.calculate_sims(lm, lx, rm, rx)
         self.announcer("finished calculating sims")
+        if self._cfg.output_format == OUTPUT_FORMAT.CSV:
+            self.announcer("converting to CSV")
+            self.convert_to_csv()
+            self.announcer("finished CSV conversion")
