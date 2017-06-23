@@ -93,7 +93,7 @@ class Task(object):
     temp_dir: Text
     type: TASK_TYPE
 
-    def __init__(self, global_settings, task_settings):
+    def __init__(self, global_settings):
         self.num_cores = global_settings["num_cores"]
         self.temp_dir = global_settings["temp_dir"]
 
@@ -106,7 +106,7 @@ class Create(Task):
     numbered: bool
 
     def __init__(self, global_settings, task_settings):
-        super().__init__(global_settings, task_settings)
+        super().__init__(global_settings)
         self.type = TASK_TYPE.CREATE
         self.source_files = task_settings["from"]["files"]
         self.space_name = task_settings["space"]
@@ -126,6 +126,15 @@ class Create(Task):
                                             case_sensitive=task_settings["space_settings"]["case_sensitive"])
 
 
+class Rotate(Task):
+    space_name: Text
+
+    def __init__(self, global_settings, task_settings):
+        super().__init__(global_settings)
+        self.type = TASK_TYPE.ROTATE
+        self.space_name = task_settings["space"]
+
+
 class Project(Task):
     space_name: Text
     source_files: List[Text]
@@ -136,7 +145,7 @@ class Project(Task):
     output_file: Optional[Text]
 
     def __init__(self, global_settings, task_settings):
-        super().__init__(global_settings, task_settings)
+        super().__init__(global_settings)
         self.type = TASK_TYPE.PROJECT
         self.space_name = task_settings["space"]
         self.source_files = task_settings["from"]["files"]
@@ -172,7 +181,7 @@ class Calculate(Task):
     ds_name: Text
 
     def __init__(self, global_settings, task_settings):
-        super().__init__(global_settings, task_settings)
+        super().__init__(global_settings)
         self.type = TASK_TYPE.CALCULATE
         self.space_name = task_settings["space"]
         global_settings["tasks"].append(Project(global_settings, task_settings))
@@ -200,7 +209,7 @@ class Convert(Task):
     ds_name: Text
 
     def __init__(self, global_settings, task_settings):
-        super().__init__(global_settings, task_settings)
+        super().__init__(global_settings)
 
         self.type = TASK_TYPE.CONVERT
         try:
@@ -253,6 +262,8 @@ class Config(object):
         try:
             if task_settings["type"] == "create_space":
                 return Create(global_settings, task_settings)
+            elif task_settings["type"] == "rotate_space":
+                return Rotate(global_settings, task_settings)
             elif task_settings["type"] == "project_sentences":
                 return Project(global_settings, task_settings)
             elif task_settings["type"] == "calculate_similarity":
