@@ -19,8 +19,10 @@ tasks:
     space: Bus
     from:
       files:
-        - input/inn_name.txt
-        - input/psych_name.txt
+        - file_name: input/inn_name.txt
+          ds_name: inn
+        - file_name: input/psych_name.txt
+          ds_name: psych
       pairs: cross
       headers: true
       numbered: true

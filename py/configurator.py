@@ -130,6 +130,7 @@ class Create(Task):
 class Project(Task):
     space_name: Text
     source_files: List[Text]
+    source_names: List[Text]
     space_settings: Optional[SpaceSettings]
     headers: bool
     numbered: bool
@@ -140,7 +141,14 @@ class Project(Task):
         super().__init__(global_settings, task_settings)
         self.type = TASK_TYPE.PROJECT
         self.space_name = task_settings["space"]
-        self.source_files = task_settings["from"]["files"]
+        self.source_files = []
+        self.source_names = []
+        for file in task_settings["from"]["files"]:
+            try:
+                self.source_files.append(file["file_name"])
+                self.source_names.append(file["source_name"])
+            except (TypeError, KeyError):
+                self.source_files.append(file)
         try:
             self.headers = task_settings["from"]["headers"]
         except KeyError:
@@ -193,6 +201,12 @@ class Calculate(Task):
                 global_settings["tasks"].append(Project(global_settings, subtask_settings))
         else:
             raise Exception("You have specified an illegal pair mode, please use 'all' or 'cross'")
+
+        try:
+            self.pair_mode = PAIR_MODE[task_settings["from"]["pairs"]]
+        except KeyError:
+            self.pair_mode = PAIR_MODE.ALL
+            warnings.warn("No pair mode specified, using 'all' as the default.")
 
         try:
             self.output_format = OUTPUT_FORMAT[task_settings["output"]["format"]]
