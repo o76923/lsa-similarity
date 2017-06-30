@@ -27,6 +27,9 @@ tasks:
     output:
       format: H5
       file_name: interdisciplinary_name.h5
+      input_names:
+        - inn
+        - psych
       ds_name: lsa_bus
 options:
   cores: 19
