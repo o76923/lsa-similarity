@@ -1,11 +1,12 @@
 import multiprocessing as mp
 import os
 import warnings
-import yaml
+from typing import List, Optional, Text
 from uuid import uuid4
-from typing import Optional, List, Text
-from py.utils import *
 
+import yaml
+
+from py.utils import *
 
 CONFIG_FILE = "/app/data/"+os.environ.get("CONFIG_FILE", "config.yml")
 
@@ -170,12 +171,28 @@ class Calculate(Task):
     space_name: Text
     output_file: Text
     ds_name: Text
+    pair_mode: PAIR_MODE
 
     def __init__(self, global_settings, task_settings):
         super().__init__(global_settings, task_settings)
         self.type = TASK_TYPE.CALCULATE
         self.space_name = task_settings["space"]
-        global_settings["tasks"].append(Project(global_settings, task_settings))
+
+        try:
+            self.pair_mode = PAIR_MODE[task_settings["from"]["pairs"]]
+        except KeyError:
+            warnings.warn("No pair mode specified, using 'all' by default.")
+            self.pair_mode = PAIR_MODE.ALL
+
+        if self.pair_mode == PAIR_MODE.ALL:
+            global_settings["tasks"].append(Project(global_settings, task_settings))
+        elif self.pair_mode == PAIR_MODE.CROSS:
+            for f in task_settings["from"]["files"]:
+                subtask_settings = task_settings.copy()
+                subtask_settings["from"]["files"] = f
+                global_settings["tasks"].append(Project(global_settings, subtask_settings))
+        else:
+            raise Exception("You have specified an illegal pair mode, please use 'all' or 'cross'")
 
         try:
             self.output_format = OUTPUT_FORMAT[task_settings["output"]["format"]]
