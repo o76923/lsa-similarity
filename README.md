@@ -85,7 +85,9 @@ followed by an explanation of the options available.
 
 ```yaml
   - type: calculate_similarity
-    space: Bus
+    options:
+      distance_metric: cosine
+      space: Bus
     from:
       files:
         - input/name.txt
@@ -102,6 +104,9 @@ followed by an explanation of the options available.
   <dt>space</dt>
   <dd>The name of the semantic space to be used when calculating 
     similarities.</dd>
+  <dt>distance_metric</dt>
+  <dd>The metric used when comparing similarities. Options are either cosine or
+   r.</dd>
   <dt>files</dt>
   <dd>A list of files that contain the short texts to be compared.</dd>
   <dt>pairs</dt>
