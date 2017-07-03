@@ -170,7 +170,7 @@ class Project(Task):
             self.rotated = False
         if "output" in task_settings:
             try:
-                self.output_format = OUTPUT_FORMAT[task_settings["output"]["format"]]
+                self.output_format = OUTPUT_FORMAT[task_settings["output"]["format"].upper()]
             except KeyError:
                 self.output_format = OUTPUT_FORMAT.H5
             try:
@@ -186,6 +186,7 @@ class Project(Task):
 
 class Calculate(Task):
     space_name: Text
+    distance_metric: DISTANCE_METRIC
     output_file: Text
     ds_name: Text
     output_format: OUTPUT_FORMAT
@@ -196,6 +197,15 @@ class Calculate(Task):
         self.space_name = task_settings["space"]
         global_settings["tasks"].append(Project(global_settings, task_settings))
 
+        try:
+            self.space_name = task_settings["options"]["space"]
+        except KeyError:
+            raise Exception("A semantic space must be specified.")
+        try:
+            self.distance_metric = DISTANCE_METRIC[task_settings["options"]["space"].upper()]
+        except KeyError:
+            warnings.warn("Illegal distance metric specified. Using cosine similarity instead.")
+        
         try:
             self.output_format = OUTPUT_FORMAT[task_settings["output"]["format"]]
         except KeyError:
