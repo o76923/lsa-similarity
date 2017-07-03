@@ -1,11 +1,12 @@
 import multiprocessing as mp
 import os
 import warnings
-import yaml
+from typing import List, Optional, Text
 from uuid import uuid4
-from typing import Optional, List, Text
-from py.utils import *
 
+import yaml
+
+from py.utils import *
 
 CONFIG_FILE = "/app/data/"+os.environ.get("CONFIG_FILE", "config.yml")
 
@@ -148,8 +149,11 @@ class Project(Task):
     def __init__(self, global_settings, task_settings):
         super().__init__(global_settings)
         self.type = TASK_TYPE.PROJECT
-        self.space_name = task_settings["space"]
         self.source_files = task_settings["from"]["files"]
+        try:
+            self.space_name = task_settings["options"]["space"]
+        except KeyError:
+            raise Exception("A semantic space must be specified.")
         try:
             self.headers = task_settings["from"]["headers"]
         except KeyError:

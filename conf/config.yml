@@ -15,10 +15,10 @@ tasks:
       document_scope: line
       files:
         - paragraphs/PR.txt
-  - type: rotate_space
-    space: PR
   - type: calculate_similarity
-    space: PR
+    options:
+      space: PR
+      distance_metric: cosine
     from:
       files:
         - input/name.txt
