@@ -121,10 +121,10 @@ class Create(Task):
             self.numbered = False
         self.space_settings = SpaceSettings(space_name=task_settings["options"]["space"],
                                             load=False,
-                                            dimensions=task_settings["space_settings"]["dimensions"],
-                                            stem=task_settings["space_settings"]["stem"],
-                                            remove=task_settings["space_settings"]["remove"],
-                                            case_sensitive=task_settings["space_settings"]["case_sensitive"])
+                                            dimensions=task_settings["options"]["dimensions"],
+                                            stem=task_settings["options"]["stem"],
+                                            remove=task_settings["options"]["remove"],
+                                            case_sensitive=task_settings["options"]["case_sensitive"])
 
 
 class Rotate(Task):

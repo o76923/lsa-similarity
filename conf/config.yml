@@ -1,7 +1,7 @@
 tasks:
   - type: create_space
-    space: PR
-    space_settings:
+    options:
+      space: PR
       stem: false
       case_sensitive: false
       dimensions: 500
