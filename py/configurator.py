@@ -110,7 +110,7 @@ class Create(Task):
         super().__init__(global_settings)
         self.type = TASK_TYPE.CREATE
         self.source_files = task_settings["from"]["files"]
-        self.space_name = task_settings["space"]
+        self.space_name = task_settings["options"]["space"]
         try:
             self.headers = task_settings["from"]["headers"]
         except KeyError:
@@ -119,7 +119,7 @@ class Create(Task):
             self.numbered = task_settings["from"]["numbered"]
         except KeyError:
             self.numbered = False
-        self.space_settings = SpaceSettings(space_name=task_settings["space"],
+        self.space_settings = SpaceSettings(space_name=task_settings["options"]["space"],
                                             load=False,
                                             dimensions=task_settings["space_settings"]["dimensions"],
                                             stem=task_settings["space_settings"]["stem"],
@@ -133,7 +133,7 @@ class Rotate(Task):
     def __init__(self, global_settings, task_settings):
         super().__init__(global_settings)
         self.type = TASK_TYPE.ROTATE
-        self.space_name = task_settings["space"]
+        self.space_name = task_settings["options"]["space"]
 
 
 class Project(Task):
@@ -194,7 +194,6 @@ class Calculate(Task):
     def __init__(self, global_settings, task_settings):
         super().__init__(global_settings)
         self.type = TASK_TYPE.CALCULATE
-        self.space_name = task_settings["space"]
         global_settings["tasks"].append(Project(global_settings, task_settings))
 
         try:

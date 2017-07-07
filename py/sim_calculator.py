@@ -1,10 +1,12 @@
-from py.utils import *
 from functools import partial
 from itertools import combinations
+
 import h5py
 import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
+
 from py.configurator import Calculate
+from py.utils import *
 
 CHUNK_SIZE = 100
 
@@ -43,17 +45,11 @@ class SimCalculator(object):
                 self.announcer("Chunk {:>3d}/{:>3d} completed".format(left_index, len(chunks)))
 
     def convert_to_csv(self):
+        sims = self.ds[:]
+
         with open('/app/data/output/{}'.format(self._cfg.output_file), "w") as out_file:
-            i = 0
-            buffer = ""
-            for (left_index, left_id), (right_index, right_id) in combinations(enumerate(self.f["/input/id"]), 2):
-                buffer += "{},{},{:0.3f}\n".format(left_id, right_id, self.ds[left_index, right_index])
-                i += 1
-                if i == 10000:
-                    out_file.write(buffer)
-                    buffer = ""
-                    i = 0
-            out_file.write(buffer)
+            for (left, right), val in zip(combinations(self.f["/input/id"], 2), sims[np.triu_indices_from(sims, k=1)]):
+                out_file.write("{},{},{:0.3f}\n".format(left, right, val))
 
     def main(self):
         self.announcer("Started sim calculation task")
