@@ -86,7 +86,6 @@ class SpaceSettings(object):
                 data['stopwords'] = False
             yaml.dump(data, out_file)
 
-
 class Task(object):
     num_cores: int
     temp_dir: Text
@@ -95,7 +94,6 @@ class Task(object):
     def __init__(self, global_settings):
         self.num_cores = global_settings["num_cores"]
         self.temp_dir = global_settings["temp_dir"]
-
 
 class Create(Task):
     space_name: Text
@@ -124,19 +122,10 @@ class Create(Task):
                                             remove=task_settings["options"]["remove"],
                                             case_sensitive=task_settings["options"]["case_sensitive"])
 
-
-class Rotate(Task):
-    space_name: Text
-
-    def __init__(self, global_settings, task_settings):
-        super().__init__(global_settings)
-        self.type = TASK_TYPE.ROTATE
-        self.space_name = task_settings["options"]["space"]
-
-
 class Project(Task):
     space_name: Text
     source_files: List[Text]
+    source_names: List[Text]
     space_settings: Optional[SpaceSettings]
     headers: bool
     numbered: bool
@@ -147,7 +136,14 @@ class Project(Task):
     def __init__(self, global_settings, task_settings):
         super().__init__(global_settings)
         self.type = TASK_TYPE.PROJECT
-        self.source_files = task_settings["from"]["files"]
+        self.source_files = []
+        self.source_names = []
+        for file in task_settings["from"]["files"]:
+            try:
+                self.source_files.append(file["file_name"])
+                self.source_names.append(file["source_name"])
+            except (TypeError, KeyError):
+                self.source_files.append(file)
         try:
             self.space_name = task_settings["options"]["space"]
         except KeyError:
@@ -181,18 +177,40 @@ class Project(Task):
                 self.ds_name = 'sim'
                 warnings.warn("No ds_name specified, using 'sim' as name of data source in vectors")
 
-
 class Calculate(Task):
     space_name: Text
     distance_metric: DISTANCE_METRIC
     output_file: Text
     ds_name: Text
     output_format: OUTPUT_FORMAT
+    pair_mode: PAIR_MODE
 
     def __init__(self, global_settings, task_settings):
         super().__init__(global_settings)
         self.type = TASK_TYPE.CALCULATE
         global_settings["tasks"].append(Project(global_settings, task_settings))
+
+        try:
+            self.pair_mode = PAIR_MODE[task_settings["from"]["pairs"]]
+        except KeyError:
+            warnings.warn("No pair mode specified, using 'all' by default.")
+            self.pair_mode = PAIR_MODE.ALL
+
+        if self.pair_mode == PAIR_MODE.ALL:
+            global_settings["tasks"].append(Project(global_settings, task_settings))
+        elif self.pair_mode == PAIR_MODE.CROSS:
+            for f in task_settings["from"]["files"]:
+                subtask_settings = task_settings.copy()
+                subtask_settings["from"]["files"] = f
+                global_settings["tasks"].append(Project(global_settings, subtask_settings))
+        else:
+            raise Exception("You have specified an illegal pair mode, please use 'all' or 'cross'")
+
+        try:
+            self.pair_mode = PAIR_MODE[task_settings["from"]["pairs"]]
+        except KeyError:
+            self.pair_mode = PAIR_MODE.ALL
+            warnings.warn("No pair mode specified, using 'all' as the default.")
 
         try:
             self.space_name = task_settings["options"]["space"]
@@ -216,6 +234,7 @@ class Calculate(Task):
         except KeyError:
             self.ds_name = 'sim'
             warnings.warn("No ds_name specified, using 'sim' as name of data source in sims")
+
 
 class Config(object):
     tasks: List[Task]

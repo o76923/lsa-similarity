@@ -21,13 +21,16 @@ tasks:
       distance_metric: cosine
     from:
       files:
-        - input/name.txt
-      pairs: all
+        - file_name: input/inn_name.txt
+          ds_name: inn
+        - file_name: input/psych_name.txt
+          ds_name: psych
+      pairs: cross
       headers: true
       numbered: true
     output:
       format: H5
-      file_name: name.h5
+      file_name: interdisciplinary_name.h5
       ds_name: lsa_pr
 options:
   cores: 19
