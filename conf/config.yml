@@ -1,7 +1,7 @@
 tasks:
   - type: create_space
-    space: PR
-    space_settings:
+    options:
+      space: PR
       stem: false
       case_sensitive: false
       dimensions: 500
@@ -15,10 +15,10 @@ tasks:
       document_scope: line
       files:
         - paragraphs/PR.txt
-  - type: rotate_space
-    space: PR
   - type: calculate_similarity
-    space: PR
+    options:
+      space: PR
+      distance_metric: cosine
     from:
       files:
         - input/name.txt

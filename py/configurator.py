@@ -6,7 +6,6 @@ from uuid import uuid4
 from typing import Optional, List, Text
 from py.utils import *
 
-
 CONFIG_FILE = "/app/data/"+os.environ.get("CONFIG_FILE", "config.yml")
 
 
@@ -109,7 +108,7 @@ class Create(Task):
         super().__init__(global_settings)
         self.type = TASK_TYPE.CREATE
         self.source_files = task_settings["from"]["files"]
-        self.space_name = task_settings["space"]
+        self.space_name = task_settings["options"]["space"]
         try:
             self.headers = task_settings["from"]["headers"]
         except KeyError:
@@ -118,12 +117,12 @@ class Create(Task):
             self.numbered = task_settings["from"]["numbered"]
         except KeyError:
             self.numbered = False
-        self.space_settings = SpaceSettings(space_name=task_settings["space"],
+        self.space_settings = SpaceSettings(space_name=task_settings["options"]["space"],
                                             load=False,
-                                            dimensions=task_settings["space_settings"]["dimensions"],
-                                            stem=task_settings["space_settings"]["stem"],
-                                            remove=task_settings["space_settings"]["remove"],
-                                            case_sensitive=task_settings["space_settings"]["case_sensitive"])
+                                            dimensions=task_settings["options"]["dimensions"],
+                                            stem=task_settings["options"]["stem"],
+                                            remove=task_settings["options"]["remove"],
+                                            case_sensitive=task_settings["options"]["case_sensitive"])
 
 
 class Rotate(Task):
@@ -132,7 +131,7 @@ class Rotate(Task):
     def __init__(self, global_settings, task_settings):
         super().__init__(global_settings)
         self.type = TASK_TYPE.ROTATE
-        self.space_name = task_settings["space"]
+        self.space_name = task_settings["options"]["space"]
 
 
 class Project(Task):
@@ -148,8 +147,11 @@ class Project(Task):
     def __init__(self, global_settings, task_settings):
         super().__init__(global_settings)
         self.type = TASK_TYPE.PROJECT
-        self.space_name = task_settings["space"]
         self.source_files = task_settings["from"]["files"]
+        try:
+            self.space_name = task_settings["options"]["space"]
+        except KeyError:
+            raise Exception("A semantic space must be specified.")
         try:
             self.headers = task_settings["from"]["headers"]
         except KeyError:
@@ -166,7 +168,7 @@ class Project(Task):
             self.rotated = False
         if "output" in task_settings:
             try:
-                self.output_format = OUTPUT_FORMAT[task_settings["output"]["format"]]
+                self.output_format = OUTPUT_FORMAT[task_settings["output"]["format"].upper()]
             except KeyError:
                 self.output_format = OUTPUT_FORMAT.H5
             try:
@@ -182,6 +184,7 @@ class Project(Task):
 
 class Calculate(Task):
     space_name: Text
+    distance_metric: DISTANCE_METRIC
     output_file: Text
     ds_name: Text
     output_format: OUTPUT_FORMAT
@@ -189,8 +192,16 @@ class Calculate(Task):
     def __init__(self, global_settings, task_settings):
         super().__init__(global_settings)
         self.type = TASK_TYPE.CALCULATE
-        self.space_name = task_settings["space"]
         global_settings["tasks"].append(Project(global_settings, task_settings))
+
+        try:
+            self.space_name = task_settings["options"]["space"]
+        except KeyError:
+            raise Exception("A semantic space must be specified.")
+        try:
+            self.distance_metric = DISTANCE_METRIC[task_settings["options"]["space"].upper()]
+        except KeyError:
+            warnings.warn("Illegal distance metric specified. Using cosine similarity instead.")
 
         try:
             self.output_format = OUTPUT_FORMAT[task_settings["output"]["format"]]
@@ -205,7 +216,6 @@ class Calculate(Task):
         except KeyError:
             self.ds_name = 'sim'
             warnings.warn("No ds_name specified, using 'sim' as name of data source in sims")
-
 
 class Config(object):
     tasks: List[Task]
@@ -246,8 +256,6 @@ class Config(object):
         try:
             if task_settings["type"] == "create_space":
                 return Create(global_settings, task_settings)
-            elif task_settings["type"] == "rotate_space":
-                return Rotate(global_settings, task_settings)
             elif task_settings["type"] == "project_sentences":
                 return Project(global_settings, task_settings)
             elif task_settings["type"] == "calculate_similarity":

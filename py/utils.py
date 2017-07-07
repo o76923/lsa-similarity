@@ -1,10 +1,11 @@
-from datetime import datetime
 import subprocess
+from datetime import datetime
 from enum import Enum
 
 TASK_TYPE = Enum('TASK_TYPE', 'CREATE PROJECT CALCULATE ROTATE')
 PAIR_MODE = Enum('PAIR_MODE', 'ALL CROSS LIST')
 OUTPUT_FORMAT = Enum('OUTPUT_FORMAT', 'H5 CSV')
+DISTANCE_METRIC = Enum('DISTANCE_METRIC', 'COSINE R')
 
 
 def run_cmd(cmd, raw=False):
