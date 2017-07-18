@@ -1,15 +1,14 @@
 import multiprocessing as mp
 import os
 import shutil
+from functools import partial
 
 import h5py
-import numpy as np
-
-import py.vec_worker as vw
-import py.document_cleaner as dc
-from functools import partial
 from gensim.corpora import Dictionary
 from gensim.models import LsiModel
+
+import py.document_cleaner as dc
+import py.vec_worker as vw
 from py.configurator import Project, SpaceSettings
 from py.utils import *
 
@@ -17,8 +16,12 @@ from py.utils import *
 class Projector(object):
     def __init__(self, config: Project, start_time):
         self._cfg = config
-        self.dictionary = Dictionary.load("/app/data/spaces/%s/dictionary" % self._cfg.space_name)
-        self.model = LsiModel.load("/app/data/spaces/%s/lsi" % self._cfg.space_name)
+        self.dictionary = Dictionary.load("/app/data/spaces/{}/dictionary".format(self._cfg.space_name))
+        self.model = LsiModel.load("/app/data/spaces/{}/lsi".format(self._cfg.space_name))
+        try:
+            self.rot_mat = np.load("/app/data/spaces/{}/rot_mat.npy".format(self._cfg.space_name))
+        except FileNotFoundError:
+            pass
         self.raw_sentences = dict()
         self.sentences = dict()
         self.vectors = dict()
@@ -50,22 +53,20 @@ class Projector(object):
         with mp.Pool(self._cfg.num_cores, initializer=dc.init_worker, initargs=(self._cfg.space_settings,)) as pool:
             self.sentences = {k: v for k, v in pool.starmap_async(func=dc.clean_keyed_document,
                                                                   iterable=self.raw_sentences.items()).get()}
-        with mp.Pool(self._cfg.num_cores, initializer=vw.init_worker, initargs=(self.dictionary, self.model)) as pool:
-            self.vectors = {k: v for k, v in pool.starmap_async(func=vw.vectorize,
-                                                                iterable=self.sentences.items()).get()}
+        if self._cfg.rotated:
+            with mp.Pool(self._cfg.num_cores, initializer=vw.init_worker,
+                         initargs=(self.dictionary, self.model, self.rot_mat)) as pool:
+                self.vectors = {k: v for k, v in pool.starmap_async(func=vw.rotated_vectorize,
+                                                                    iterable=self.sentences.items()).get()}
+        else:
+            with mp.Pool(self._cfg.num_cores, initializer=vw.init_worker,
+                         initargs=(self.dictionary, self.model)) as pool:
+                self.vectors = {k: v for k, v in pool.starmap_async(func=vw.vectorize,
+                                                                    iterable=self.sentences.items()).get()}
         good_vectors = {k: v for k, v in self.vectors.items() if v.shape == (self._cfg.space_settings.dimensions, )}
         bad_vectors = {k: np.zeros(shape=(self._cfg.space_settings.dimensions, ), dtype=np.float32) for k, v in self.vectors.items() if v.shape != (self._cfg.space_settings.dimensions, )}
         self.vectors = good_vectors
         self.vectors.update(bad_vectors)
-        # self.announcer("space_name: {}\n"
-        #                "                                        output_file: {}\n"
-        #                "                                        ds_name: {}\n"
-        #                "                                        raw_sentences: {}\n"
-        #                "                                        vectors: {}".format(self._cfg.space_name,
-        #                                                                             self._cfg.output_file,
-        #                                                                             self._cfg.ds_name,
-        #                                                                             len(self.raw_sentences),
-        #                                                                             len(self.vectors)))
 
     def save_hdf5(self):
         try:
@@ -104,12 +105,6 @@ class Projector(object):
                                 compression="gzip",
                                 compression_opts=9,
                                 shuffle=True)
-        # if len(unused_keys) > 0:
-        #     skipped = f.require_group("skip")
-        #     skipped.require_dataset("id",
-        #                             dtype=int,
-        #                             shape=(len(unused_keys),),
-        #                             data=unused_keys)
         f.flush()
         f.close()
 

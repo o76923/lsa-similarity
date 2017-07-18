@@ -2,10 +2,12 @@ import subprocess
 from datetime import datetime
 from enum import Enum
 
-TASK_TYPE = Enum('TASK_TYPE', 'CREATE PROJECT CALCULATE ROTATE')
+import numpy as np
+
+TASK_TYPE = Enum('TASK_TYPE', 'CREATE PROJECT CALCULATE')
 PAIR_MODE = Enum('PAIR_MODE', 'ALL CROSS LIST')
 OUTPUT_FORMAT = Enum('OUTPUT_FORMAT', 'H5 CSV')
-DISTANCE_METRIC = Enum('DISTANCE_METRIC', 'COSINE R')
+DISTANCE_METRIC = Enum('DISTANCE_METRIC', 'COSINE ABS_DIFFERENCE R')
 
 
 def run_cmd(cmd, raw=False):
@@ -27,3 +29,44 @@ def announcer(msg, process, start):
                                                                                               minutes,
                                                                                               seconds),
                                                   msg=msg))
+
+
+def varimax(mat: np.matrix, kaiser_norm: bool = True, eps: float = 1e-5) -> (np.matrix, np.matrix):
+    """
+    :param mat:
+    :param kaiser_norm:
+    :param eps:
+    :returns: tuple (loadings, rotmat)
+        WHERE
+        np.matrix loadings are the loadings in the rotated space
+        np.matrix rotmat is the rotation matrix
+    :rtype: (np.matrix, np.matrix)
+    """
+    from numpy.linalg import svd
+    x = mat.copy()
+    p, nc = x.shape
+    if nc < 2:
+        return x
+    if kaiser_norm:
+        sc = np.sqrt(np.sum(np.square(x), axis=1))
+        x = np.divide(x, sc[:, np.newaxis])
+    tt = np.eye(nc)
+    d = 0.0
+    for i in range(1000):
+        print("starting loop {}".format(i))
+        z = np.dot(x, tt)
+        z_cubed = np.power(z, 3)
+        sum_squares = np.sum(np.square(z), axis=0)
+        ss_over_p = sum_squares / p
+        diag = np.diag(np.ravel(ss_over_p))
+        b = np.dot(x.T, (z_cubed - np.dot(z, diag)))
+        u, s, vt = svd(b)
+        tt = np.dot(u, vt)
+        d_past = d
+        d = np.sum(s)
+        if d < d_past * (1 + eps):
+            break
+    z = np.dot(x, tt)
+    if kaiser_norm:
+        z = np.multiply(x, sc[:, np.newaxis])
+    return z, tt

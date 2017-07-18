@@ -1,9 +1,11 @@
 import multiprocessing as mp
 import os
 import warnings
-import yaml
+from typing import List, Optional, Text
 from uuid import uuid4
-from typing import Optional, List, Text
+
+import yaml
+
 from py.utils import *
 
 CONFIG_FILE = "/app/data/"+os.environ.get("CONFIG_FILE", "config.yml")
@@ -86,6 +88,7 @@ class SpaceSettings(object):
                 data['stopwords'] = False
             yaml.dump(data, out_file)
 
+
 class Task(object):
     num_cores: int
     temp_dir: Text
@@ -95,12 +98,14 @@ class Task(object):
         self.num_cores = global_settings["num_cores"]
         self.temp_dir = global_settings["temp_dir"]
 
+
 class Create(Task):
     space_name: Text
     source_files: List[Text]
     space_settings: SpaceSettings
     headers: bool
     numbered: bool
+    compute_rotation: bool
 
     def __init__(self, global_settings, task_settings):
         super().__init__(global_settings)
@@ -121,6 +126,12 @@ class Create(Task):
                                             stem=task_settings["options"]["stem"],
                                             remove=task_settings["options"]["remove"],
                                             case_sensitive=task_settings["options"]["case_sensitive"])
+        try:
+            self.compute_rotation = task_settings["options"]["compute_varimax"]
+        except KeyError:
+            self.compute_rotation = False
+            warnings.warn("No compute_varimax option specified, not computing")
+
 
 class Project(Task):
     space_name: Text
@@ -158,10 +169,11 @@ class Project(Task):
             self.numbered = False
         try:
             self.rotated = task_settings["options"]["rotated"]
-            if self.rotated:
-                global_settings["tasks"].append(Rotate(global_settings, task_settings))
+            # if not os.path.isfile("/app/data/spaces/{}/rot_mat.npy".format(self.space_name)):
+            #     raise Exception("Unable to project document into space without a rotation matrix")
         except KeyError:
             self.rotated = False
+            warnings.warn("Rotation not specified, defaulting to unrotated projection")
         if "output" in task_settings:
             try:
                 self.output_format = OUTPUT_FORMAT[task_settings["output"]["format"].upper()]
@@ -176,6 +188,7 @@ class Project(Task):
             except KeyError:
                 self.ds_name = 'sim'
                 warnings.warn("No ds_name specified, using 'sim' as name of data source in vectors")
+
 
 class Calculate(Task):
     space_name: Text
@@ -218,9 +231,12 @@ class Calculate(Task):
             raise Exception("A semantic space must be specified.")
         try:
             self.distance_metric = DISTANCE_METRIC[task_settings["options"]["space"].upper()]
+            if self.distance_metric == DISTANCE_METRIC.R:
+                raise Exception("Correlation distance metric not yet implemented")
+            elif self.distance_metric == DISTANCE_METRIC.ABS_DIFFERENCE:
+                raise Exception("Absolute difference distance metric not yet implemented")
         except KeyError:
             warnings.warn("Illegal distance metric specified. Using cosine similarity instead.")
-
         try:
             self.output_format = OUTPUT_FORMAT[task_settings["output"]["format"]]
         except KeyError:

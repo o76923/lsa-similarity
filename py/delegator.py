@@ -1,13 +1,12 @@
 import os
+from functools import partial
 from shutil import rmtree
-from py.space_creator import Creator
+
+from py.configurator import Config
 from py.projector import Projector
 from py.sim_calculator import SimCalculator
-from py.rotator import Rotator
-from py.configurator import Config
+from py.space_creator import Creator
 from py.utils import *
-from functools import partial
-
 
 start_time = datetime.now()
 announcer = partial(announcer, process="Delegator", start=start_time)
@@ -21,8 +20,6 @@ try:
     for task in cfg.tasks:
         if task.type == TASK_TYPE.CREATE:
             t = Creator(task, start_time)
-        elif task.type == TASK_TYPE.ROTATE:
-            t = Rotator(task, start_time)
         elif task.type == TASK_TYPE.PROJECT:
             t = Projector(task, start_time)
         elif task.type == TASK_TYPE.CALCULATE:

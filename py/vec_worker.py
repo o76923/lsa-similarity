@@ -2,24 +2,34 @@ import numpy as np
 
 
 class Vectorizer(object):
-
-    def __init__(self, dictionary, model):
+    def __init__(self, dictionary, model, rot_mat=None):
         self.dictionary = dictionary
         self.model = model
+        self.s = self.model.projection.s
+        self.rot_mat = rot_mat
 
     def vectorize(self, key, document):
         bow = self.dictionary.doc2bow(document)
-        ms = self.model[bow]
-        return key, np.array([n[1] for n in ms], dtype=np.float32)
+        u = np.array([n[1] for n in self.model[bow]], dtype=np.float32)
+        return key, u * self.s
+
+    def rotated_vectorize(self, key, document):
+        key, vector = self.vectorize(key, document)
+        return key, vector * self.rot_mat
 
 v: Vectorizer
 
 
-def init_worker(d, m):
+def init_worker(d, m, r=None):
     global v
-    v = Vectorizer(d, m)
+    v = Vectorizer(d, m, r)
 
 
 def vectorize(key, document):
+    global v
+    return v.vectorize(key, document)
+
+
+def rotated_vectorize(key, document):
     global v
     return v.vectorize(key, document)
