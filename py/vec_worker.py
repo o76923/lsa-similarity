@@ -5,17 +5,17 @@ class Vectorizer(object):
     def __init__(self, dictionary, model, rot_mat=None):
         self.dictionary = dictionary
         self.model = model
-        self.s = self.model.projection.s
+        # self.s = np.diag(self.model.projection.s)
         self.rot_mat = rot_mat
 
     def vectorize(self, key, document):
         bow = self.dictionary.doc2bow(document)
         u = np.array([n[1] for n in self.model[bow]], dtype=np.float32)
-        return key, u * self.s
+        return key, u
 
     def rotated_vectorize(self, key, document):
         key, vector = self.vectorize(key, document)
-        return key, vector * self.rot_mat
+        return key, np.dot(vector, self.rot_mat)
 
 v: Vectorizer
 

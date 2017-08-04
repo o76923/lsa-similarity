@@ -2,7 +2,6 @@ import multiprocessing as mp
 import os
 import warnings
 from typing import List, Optional, Text
-from uuid import uuid4
 
 import yaml
 
@@ -91,12 +90,12 @@ class SpaceSettings(object):
 
 class Task(object):
     num_cores: int
-    temp_dir: Text
+    # temp_dir: Text
     type: TASK_TYPE
 
     def __init__(self, global_settings):
         self.num_cores = global_settings["num_cores"]
-        self.temp_dir = global_settings["temp_dir"]
+        # self.temp_dir = global_settings["temp_dir"]
 
 
 class Create(Task):
@@ -133,6 +132,29 @@ class Create(Task):
             warnings.warn("No compute_varimax option specified, not computing")
 
 
+class Rotate(Task):
+    space_name: Text
+    num_dims: int
+    kaiser_norm: bool
+
+    def __init__(self, global_settings, task_settings):
+        super().__init__(global_settings)
+        self.type = TASK_TYPE.ROTATE
+        try:
+            self.space_name = task_settings["options"]["space"]
+        except KeyError:
+            raise Exception("You must specify which space that you want to rotate")
+        try:
+            self.num_dims = task_settings["options"]["dimensions"]
+        except KeyError:
+            warnings.warn("Number of dimensions not specified. Using all dimensions in the space.")
+        try:
+            self.kaiser_norm = task_settings["options"]["normalize"]
+        except KeyError:
+            self.kaiser_norm = True
+            warnings.warn("Whether to normalize the rotation is unspecified, defaulting to true")
+
+
 class Project(Task):
     space_name: Text
     source_files: List[Text]
@@ -141,6 +163,7 @@ class Project(Task):
     headers: bool
     numbered: bool
     rotated: bool
+    num_dims: int
     output_format: OUTPUT_FORMAT
     output_file: Optional[Text]
 
@@ -169,11 +192,13 @@ class Project(Task):
             self.numbered = False
         try:
             self.rotated = task_settings["options"]["rotated"]
-            # if not os.path.isfile("/app/data/spaces/{}/rot_mat.npy".format(self.space_name)):
-            #     raise Exception("Unable to project document into space without a rotation matrix")
         except KeyError:
             self.rotated = False
             warnings.warn("Rotation not specified, defaulting to unrotated projection")
+        try:
+            self.num_dims = task_settings["options"]["dimensions"]
+        except KeyError:
+            warnings.warn("Number of dimensions not specified, defaulting to all in the space.")
         if "output" in task_settings:
             try:
                 self.output_format = OUTPUT_FORMAT[task_settings["output"]["format"].upper()]
@@ -201,10 +226,9 @@ class Calculate(Task):
     def __init__(self, global_settings, task_settings):
         super().__init__(global_settings)
         self.type = TASK_TYPE.CALCULATE
-        global_settings["tasks"].append(Project(global_settings, task_settings))
 
         try:
-            self.pair_mode = PAIR_MODE[task_settings["from"]["pairs"]]
+            self.pair_mode = PAIR_MODE[task_settings["from"]["pairs"].upper()]
         except KeyError:
             warnings.warn("No pair mode specified, using 'all' by default.")
             self.pair_mode = PAIR_MODE.ALL
@@ -220,21 +244,13 @@ class Calculate(Task):
             raise Exception("You have specified an illegal pair mode, please use 'all' or 'cross'")
 
         try:
-            self.pair_mode = PAIR_MODE[task_settings["from"]["pairs"]]
-        except KeyError:
-            self.pair_mode = PAIR_MODE.ALL
-            warnings.warn("No pair mode specified, using 'all' as the default.")
-
-        try:
             self.space_name = task_settings["options"]["space"]
         except KeyError:
             raise Exception("A semantic space must be specified.")
         try:
-            self.distance_metric = DISTANCE_METRIC[task_settings["options"]["space"].upper()]
+            self.distance_metric = DISTANCE_METRIC[task_settings["options"]["distance_metric"].upper()]
             if self.distance_metric == DISTANCE_METRIC.R:
                 raise Exception("Correlation distance metric not yet implemented")
-            elif self.distance_metric == DISTANCE_METRIC.ABS_DIFFERENCE:
-                raise Exception("Absolute difference distance metric not yet implemented")
         except KeyError:
             warnings.warn("Illegal distance metric specified. Using cosine similarity instead.")
         try:
@@ -254,17 +270,17 @@ class Calculate(Task):
 
 class Config(object):
     tasks: List[Task]
-    temp_dir: str
+    # temp_dir: str
     num_cores: int
 
     def __init__(self):
         self._read_config(CONFIG_FILE)
         self._load_global()
-        self.temp_dir = "/app/data/tmp/lsa_{}".format(uuid4())
+        # self.temp_dir = "/tmp/lsa_{}".format(uuid4())
         self.tasks = []
 
         global_settings = {
-            "temp_dir": self.temp_dir,
+            # "temp_dir": self.temp_dir,
             "num_cores": self.num_cores,
             "tasks": self.tasks
         }
@@ -285,7 +301,7 @@ class Config(object):
         except TypeError:
             warnings.warn("The number of cores must be an int, defaulting to one less than max insetad")
         finally:
-            self.num_cores = mp.cpu_count() - 1
+            self.num_cores = max(mp.cpu_count() - 1, 1)
 
     def _load_task(self, global_settings, task_settings):
         try:
@@ -293,6 +309,8 @@ class Config(object):
                 return Create(global_settings, task_settings)
             elif task_settings["type"] == "project_sentences":
                 return Project(global_settings, task_settings)
+            elif task_settings["type"] == "rotate_space":
+                return Rotate(global_settings, task_settings)
             elif task_settings["type"] == "calculate_similarity":
                 return Calculate(global_settings, task_settings)
             else:

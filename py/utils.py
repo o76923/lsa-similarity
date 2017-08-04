@@ -3,8 +3,9 @@ from datetime import datetime
 from enum import Enum
 
 import numpy as np
+from mpi4py import MPI
 
-TASK_TYPE = Enum('TASK_TYPE', 'CREATE PROJECT CALCULATE')
+TASK_TYPE = Enum('TASK_TYPE', 'CREATE PROJECT CALCULATE ROTATE')
 PAIR_MODE = Enum('PAIR_MODE', 'ALL CROSS LIST')
 OUTPUT_FORMAT = Enum('OUTPUT_FORMAT', 'H5 CSV')
 DISTANCE_METRIC = Enum('DISTANCE_METRIC', 'COSINE ABS_DIFFERENCE R')
@@ -70,3 +71,25 @@ def varimax(mat: np.matrix, kaiser_norm: bool = True, eps: float = 1e-5) -> (np.
     if kaiser_norm:
         z = np.multiply(x, sc[:, np.newaxis])
     return z, tt
+
+
+def profile(filename=None, comm=MPI.COMM_WORLD):
+    def prof_decorator(f):
+        def wrap_f(*args, **kwargs):
+            import cProfile
+            pr = cProfile.Profile()
+            pr.enable()
+            result = f(*args, **kwargs)
+            pr.disable()
+
+            if filename is None:
+                pr.print_stats()
+            else:
+                filename_r = "/app/data/profile/{}.{}".format(filename, comm.rank)
+                pr.dump_stats(filename_r)
+
+            return result
+
+        return wrap_f
+
+    return prof_decorator

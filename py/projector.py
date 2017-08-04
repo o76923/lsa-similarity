@@ -1,5 +1,4 @@
 import multiprocessing as mp
-import os
 import shutil
 from functools import partial
 
@@ -18,14 +17,19 @@ class Projector(object):
         self._cfg = config
         self.dictionary = Dictionary.load("/app/data/spaces/{}/dictionary".format(self._cfg.space_name))
         self.model = LsiModel.load("/app/data/spaces/{}/lsi".format(self._cfg.space_name))
-        try:
-            self.rot_mat = np.load("/app/data/spaces/{}/rot_mat.npy".format(self._cfg.space_name))
-        except FileNotFoundError:
-            pass
+        self.model.projection.u = self.model.projection.u[:, :self._cfg.num_dims].astype("float16")
+        self.model.projection.s = self.model.projection.s[:self._cfg.num_dims].astype("float16")
         self.raw_sentences = dict()
         self.sentences = dict()
         self.vectors = dict()
         self.announcer = partial(announcer, process="Projector", start=start_time)
+        if self._cfg.rotated:
+            try:
+                self.rot_mat = np.load(
+                        "/app/data/spaces/{}/rotmat_{}.npy".format(self._cfg.space_name, self._cfg.num_dims)).astype(
+                        "float16")
+            except FileNotFoundError:
+                raise Exception("No rotation found for the specified number of dimensions")
 
     def load_sentences(self):
         self.raw_sentences = {}
@@ -53,39 +57,39 @@ class Projector(object):
         with mp.Pool(self._cfg.num_cores, initializer=dc.init_worker, initargs=(self._cfg.space_settings,)) as pool:
             self.sentences = {k: v for k, v in pool.starmap_async(func=dc.clean_keyed_document,
                                                                   iterable=self.raw_sentences.items()).get()}
-        if self._cfg.rotated:
-            with mp.Pool(self._cfg.num_cores, initializer=vw.init_worker,
-                         initargs=(self.dictionary, self.model, self.rot_mat)) as pool:
-                self.vectors = {k: v for k, v in pool.starmap_async(func=vw.rotated_vectorize,
-                                                                    iterable=self.sentences.items()).get()}
-        else:
-            with mp.Pool(self._cfg.num_cores, initializer=vw.init_worker,
-                         initargs=(self.dictionary, self.model)) as pool:
-                self.vectors = {k: v for k, v in pool.starmap_async(func=vw.vectorize,
-                                                                    iterable=self.sentences.items()).get()}
-        good_vectors = {k: v for k, v in self.vectors.items() if v.shape == (self._cfg.space_settings.dimensions, )}
-        bad_vectors = {k: np.zeros(shape=(self._cfg.space_settings.dimensions, ), dtype=np.float32) for k, v in self.vectors.items() if v.shape != (self._cfg.space_settings.dimensions, )}
+        # if self._cfg.rotated:
+        #     with mp.Pool(self._cfg.num_cores, initializer=vw.init_worker,
+        #                  initargs=(self.dictionary, self.model, self.rot_mat)) as pool:
+        #         self.vectors = {k: v for k, v in pool.starmap_async(func=vw.rotated_vectorize,
+        #                                                             iterable=self.sentences.items()).get()}
+        with mp.Pool(self._cfg.num_cores, initializer=vw.init_worker,
+                     initargs=(self.dictionary, self.model)) as pool:
+            self.vectors = {k: v for k, v in pool.starmap_async(func=vw.vectorize,
+                                                                iterable=self.sentences.items()).get()}
+        good_vectors = {k: v for k, v in self.vectors.items() if v.shape == (self._cfg.num_dims,)}
+        bad_vectors = {k: np.zeros(shape=(self._cfg.num_dims,), dtype="float16") for k, v in self.vectors.items() if
+                       v.shape != (self._cfg.num_dims,)}
         self.vectors = good_vectors
         self.vectors.update(bad_vectors)
+        self.vectors = {k: v.astype('float16') for (k, v) in self.vectors.items()}
 
     def save_hdf5(self):
-        try:
-            os.mkdir("/app/data/output")
-            shutil.chown("/app/data/output/", user=1000)
-        except FileExistsError:
-            pass
         if self._cfg.output_format == OUTPUT_FORMAT.H5:
-            f = h5py.File('/app/data/output/{}'.format(self._cfg.output_file), 'a')
-        else:
-            f = h5py.File('{}/{}.h5'.format(self._cfg.temp_dir, self._cfg.output_file), 'a')
+            f = h5py.File('/app/data/{}'.format(self._cfg.output_file), 'a', libver='latest')
+        elif self._cfg.output_format == OUTPUT_FORMAT.CSV:
+            f = h5py.File('/app/data/{}'.format(self._cfg.output_file)[:-3] + 'h5', 'a', libver='latest')
+
         shutil.chown(f.filename, user=1000)
         sorted_vectors = [(k, v) for (k, v) in sorted(self.vectors.items(), key=lambda x: x[0])]
         # unused_keys = [k for k in self.raw_sentences if k not in [x[0] for x in sorted_vectors]]
         vec_array = np.stack([x[1] for x in sorted_vectors])
+        vec_array = np.dot(vec_array, np.diag(self.model.projection.s))
+        if self._cfg.rotated:
+            vec_array = np.dot(vec_array, self.rot_mat)
         string_dt = h5py.h5t.special_dtype(vlen=str)
         vectors = f.require_group("vectors")
         vector = vectors.require_dataset(self._cfg.ds_name,
-                                         dtype=np.float32,
+                                         dtype='float16',
                                          shape=vec_array.shape,
                                          data=vec_array,
                                          compression="gzip",

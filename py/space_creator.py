@@ -44,8 +44,7 @@ class Creator(object):
         dictionary = self.create_dictionary(clean_documents)
         corpus = [dictionary.doc2bow(paragraph) for paragraph in clean_documents]
         self.announcer("Created Corpus")
-        log_ent_model = LogEntropyModel(corpus,
-                                        id2word=dictionary)
+        log_ent_model = LogEntropyModel(corpus, id2word=dictionary)
         self.announcer("Made Log Entropy Model")
         log_ent_corpus = log_ent_model[corpus]
         self.announcer("Made Log Entropy Corpus")
@@ -54,12 +53,9 @@ class Creator(object):
                              num_topics=self._cfg.space_settings.dimensions,
                              distributed=False)
         self.announcer("Made LSA Model")
-        if self._cfg.compute_rotation:
-            rotatated_u, rot_mat = varimax(lsa_model.projection.u)
-            return dictionary, lsa_model, rot_mat
-        return dictionary, lsa_model, None
+        return dictionary, lsa_model
 
-    def save_all(self, dictionary, model, rot_mat=None):
+    def save_all(self, dictionary, model):
         space_dir = '/app/data/spaces/{}'.format(self._cfg.space_name)
         try:
             os.makedirs(space_dir)
@@ -69,9 +65,6 @@ class Creator(object):
         self.announcer("Saved Dictionary")
         model.save('{}/lsi'.format(space_dir))
         self.announcer("Saved LSA Model")
-        if self._cfg.compute_rotation:
-            np.save('{}/rot_mat.npy'.format(space_dir), rot_mat)
-            self.announcer("Saved rotation matrix")
         self._cfg.space_settings.save()
         self.announcer("Saved Settings")
 
@@ -82,7 +75,7 @@ class Creator(object):
         with mp.Pool(mp.cpu_count() - 1, initializer=init_worker, initargs=(self._cfg.space_settings,)) as pool:
             clean_documents = [l for l in pool.map_async(func=clean_document, iterable=self.documents).get()]
         self.announcer("Cleaned Documents")
-        dictionary, model, rot_mat = self.create_space(clean_documents)
+        dictionary, model = self.create_space(clean_documents)
         self.announcer("Created Space")
-        self.save_all(dictionary, model, rot_mat)
+        self.save_all(dictionary, model)
         self.announcer("Finished saving")
